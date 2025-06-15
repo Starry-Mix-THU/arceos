@@ -6,12 +6,10 @@ use ::alloc::{sync::Arc, vec::Vec};
 use axhal::paging::{MappingFlags, PageTable};
 use memory_addr::{PhysAddr, VirtAddr};
 use memory_set::MappingBackend;
-pub use page_iter_wrapper::PageIterWrapper;
 use page_table_multiarch::PageSize;
 
 mod alloc;
 mod linear;
-mod page_iter_wrapper;
 mod shared;
 
 pub struct SharedPages {
@@ -31,6 +29,8 @@ impl Drop for SharedPages {
         }
     }
 }
+
+pub use alloc::{alloc_frame, dealloc_frame};
 
 /// A unified enum type for different memory mapping backends.
 ///

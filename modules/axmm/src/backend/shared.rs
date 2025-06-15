@@ -2,7 +2,7 @@ use alloc::sync::Arc;
 use axhal::paging::{MappingFlags, PageSize, PageTable};
 use memory_addr::VirtAddr;
 
-use crate::backend::PageIterWrapper;
+use crate::page_iter_wrapper::PageIterWrapper;
 
 use super::{Backend, SharedPages, alloc::alloc_frame};
 
