@@ -76,13 +76,13 @@ impl<M: RawMutex> FsContext<M> {
         })
     }
 
-    fn lookup(
+    /// Attempts to resolve a possible symlink, at the current location (this
+    /// assumes that `loc` is a child of current directory).
+    pub fn try_resolve_symlink(
         &self,
-        dir: &Location<M>,
-        name: &str,
+        loc: Location<M>,
         follow_count: &mut usize,
     ) -> VfsResult<Location<M>> {
-        let loc = dir.lookup_no_follow(name)?;
         if loc.node_type() != NodeType::Symlink {
             return Ok(loc);
         }
@@ -94,8 +94,18 @@ impl<M: RawMutex> FsContext<M> {
         if target.is_empty() {
             return Err(VfsError::ENOENT);
         }
+        self.resolve_components(PathBuf::from(target).components(), follow_count)
+    }
+
+    fn lookup(
+        &self,
+        dir: &Location<M>,
+        name: &str,
+        follow_count: &mut usize,
+    ) -> VfsResult<Location<M>> {
+        let loc = dir.lookup_no_follow(name)?;
         self.with_current_dir(dir.clone())?
-            .resolve_components(PathBuf::from(target).components(), follow_count)
+            .try_resolve_symlink(loc, follow_count)
     }
 
     fn resolve_components<'a>(

@@ -56,6 +56,7 @@ pub struct OpenOptions {
     create: bool,
     create_new: bool,
     directory: bool,
+    no_follow: bool,
     user: Option<(u32, u32)>,
     // system-specific
     custom_flags: i32,
@@ -74,6 +75,7 @@ impl OpenOptions {
             create: false,
             create_new: false,
             directory: false,
+            no_follow: false,
             user: None,
             // system-specific
             custom_flags: 0,
@@ -129,6 +131,12 @@ impl OpenOptions {
         self
     }
 
+    /// Sets the option to not follow symlinks.
+    pub fn no_follow(&mut self, no_follow: bool) -> &mut Self {
+        self.no_follow = no_follow;
+        self
+    }
+
     /// Sets the user and group id to open the file with.
     pub fn user(&mut self, uid: u32, gid: u32) -> &mut Self {
         self.user = Some((uid, gid));
@@ -161,15 +169,20 @@ impl OpenOptions {
         let flags = self.to_flags()?;
 
         let loc = match context.resolve_parent(path.as_ref()) {
-            Ok((parent, name)) => parent
-                .open_file_or_create(
-                    &name,
-                    self.create,
-                    self.create_new,
-                    NodePermission::from_bits_truncate(self.mode as _),
-                    self.user,
-                )?
-                .clone(),
+            Ok((parent, name)) => {
+                let mut loc = parent.open_file(&name, &axfs_ng_vfs::OpenOptions {
+                    create: self.create,
+                    create_new: self.create_new,
+                    permission: NodePermission::from_bits_truncate(self.mode as _),
+                    user: self.user,
+                })?;
+                if !self.no_follow {
+                    loc = context
+                        .with_current_dir(parent)?
+                        .try_resolve_symlink(loc, &mut 0)?;
+                }
+                loc
+            }
             Err(VfsError::EINVAL) => {
                 // root directory
                 context.root_dir().clone()
@@ -235,6 +248,7 @@ impl fmt::Debug for OpenOptions {
             create,
             create_new,
             directory,
+            no_follow,
             user,
             custom_flags,
             mode,
@@ -248,6 +262,7 @@ impl fmt::Debug for OpenOptions {
             .field("create", create)
             .field("create_new", create_new)
             .field("directory", directory)
+            .field("no_follow", no_follow)
             .field("user", user)
             .field("custom_flags", custom_flags)
             .field("mode", mode)
