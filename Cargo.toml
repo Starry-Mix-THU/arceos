@@ -68,11 +68,11 @@ axsync = { path = "modules/axsync" }
 axtask = { path = "modules/axtask" }
 axdma = { path = "modules/axdma" }
 
-axfs-ng-vfs = { git = "https://github.com/Mivik/axfs-ng-vfs", rev = "f488cdf" }
+axfs-ng-vfs = { git = "https://github.com/Starry-Mix-THU/axfs-ng-vfs", rev = "f488cdf" }
 
 [profile.release]
 lto = true
 
 [patch.crates-io]
-page_table_multiarch = { git = "https://github.com/Mivik/page_table_multiarch.git", rev = "e33b1e5" }
-page_table_entry = { git = "https://github.com/Mivik/page_table_multiarch.git", rev = "e33b1e5" }
+page_table_multiarch = { git = "https://github.com/Starry-Mix-THU/page_table_multiarch.git", rev = "e33b1e5" }
+page_table_entry = { git = "https://github.com/Starry-Mix-THU/page_table_multiarch.git", rev = "e33b1e5" }
