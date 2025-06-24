@@ -118,12 +118,12 @@ impl GlobalAllocator {
                 let mut try_size = expand_size;
                 let min_size = PAGE_SIZE.max(layout.size());
                 loop {
-                    let heap_size = match self.alloc_pages(try_size / PAGE_SIZE, PAGE_SIZE) {
-                        Ok(size) => size,
-                        Err(_) => {
+                    let heap_ptr = match self.alloc_pages(try_size / PAGE_SIZE, PAGE_SIZE) {
+                        Ok(ptr) => ptr,
+                        Err(err) => {
                             try_size /= 2;
                             if try_size < min_size {
-                                return Err(AllocResult::OutOfMemory);
+                                return Err(err);
                             }
                             continue;
                         }
@@ -134,6 +134,7 @@ impl GlobalAllocator {
                         heap_ptr + expand_size
                     );
                     balloc.add_memory(heap_ptr, expand_size)?;
+                    break;
                 }
             }
         }
