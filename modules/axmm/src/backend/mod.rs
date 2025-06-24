@@ -1,13 +1,39 @@
 //! Memory mapping backends.
 
+use core::ops::Deref;
+
+use ::alloc::{sync::Arc, vec::Vec};
 use axhal::paging::{MappingFlags, PageSize, PageTable};
-use memory_addr::VirtAddr;
+use memory_addr::{PhysAddr, VirtAddr};
 use memory_set::MappingBackend;
+
 mod alloc;
 mod linear;
+mod shared;
 
 #[allow(unused_imports)]
 pub(crate) use alloc::{alloc_frame, dealloc_frame};
+
+pub struct SharedPages {
+    pub phys_pages: Vec<PhysAddr>,
+    pub align: PageSize,
+}
+
+impl Deref for SharedPages {
+    type Target = [PhysAddr];
+
+    fn deref(&self) -> &Self::Target {
+        &self.phys_pages
+    }
+}
+
+impl Drop for SharedPages {
+    fn drop(&mut self) {
+        for frame in &self.phys_pages {
+            alloc::dealloc_frame(*frame, self.align);
+        }
+    }
+}
 
 /// A unified enum type for different memory mapping backends.
 ///
@@ -42,6 +68,9 @@ pub enum Backend {
         /// Alignment parameters for the starting address and memory range.
         align: PageSize,
     },
+    Shared {
+        pages: Arc<SharedPages>,
+    },
 }
 
 impl MappingBackend for Backend {
@@ -57,6 +86,7 @@ impl MappingBackend for Backend {
             Self::Alloc { populate, align } => {
                 Self::map_alloc(start, size, flags, pt, populate, align)
             }
+            Self::Shared { ref pages } => Self::map_shared(start, pages, flags, pt),
         }
     }
 
@@ -67,6 +97,7 @@ impl MappingBackend for Backend {
                 align: _,
             } => Self::unmap_linear(start, size, pt, pa_va_offset),
             Self::Alloc { populate, align } => Self::unmap_alloc(start, size, pt, populate, align),
+            Self::Shared { ref pages } => Self::unmap_shared(start, pages, pt),
         }
     }
 
@@ -92,7 +123,8 @@ impl Backend {
         page_table: &mut PageTable,
     ) -> bool {
         match *self {
-            Self::Linear { .. } => false, // Linear mappings should not trigger page faults.
+            // Linear & shared mappings should not trigger page faults.
+            Self::Linear { .. } | Self::Shared { .. } => false,
             Self::Alloc { populate, align } => {
                 Self::handle_page_fault_alloc(vaddr, orig_flags, page_table, populate, align)
             }

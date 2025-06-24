@@ -13,7 +13,7 @@ mod frameinfo;
 
 pub mod page_iter_wrapper;
 pub use self::aspace::AddrSpace;
-pub use self::backend::Backend;
+pub use self::backend::{Backend, SharedPages};
 
 use axerrno::{AxError, AxResult};
 use axhal::mem::phys_to_virt;

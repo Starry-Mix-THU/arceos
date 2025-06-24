@@ -1,12 +1,13 @@
 use core::fmt;
 
+use alloc::sync::Arc;
 use axerrno::{AxError, AxResult, ax_err};
 use axhal::mem::phys_to_virt;
 use axhal::paging::{MappingFlags, PageSize, PageTable, PagingError};
 use memory_addr::{MemoryAddr, PhysAddr, VirtAddr, VirtAddrRange, is_aligned};
 use memory_set::{MemoryArea, MemorySet};
 
-use crate::backend::Backend;
+use crate::backend::{Backend, SharedPages};
 use crate::mapping_err_to_ax_err;
 use crate::page_iter_wrapper::{PAGE_SIZE_4K, PageIterWrapper};
 
@@ -41,6 +42,11 @@ impl AddrSpace {
     /// Returns the reference to the inner page table.
     pub const fn page_table(&self) -> &PageTable {
         &self.pt
+    }
+
+    /// Returns the mutable reference to the inner page table.
+    pub const fn page_table_mut(&mut self) -> &mut PageTable {
+        &mut self.pt
     }
 
     /// Returns the root physical address of the inner page table.
@@ -224,6 +230,41 @@ impl AddrSpace {
         Ok(())
     }
 
+    /// Add a new shared mapping.
+    ///
+    /// See [`Backend`] for more details about the mapping backends.
+    ///
+    /// The `flags` parameter indicates the mapping permissions and attributes.
+    ///
+    /// Returns an error if the address range is out of the address space or not
+    /// aligned.
+    pub fn map_shared(
+        &mut self,
+        start: VirtAddr,
+        size: usize,
+        flags: MappingFlags,
+        source: Option<Arc<SharedPages>>,
+        align: PageSize,
+    ) -> AxResult<Arc<SharedPages>> {
+        self.validate_region(start, size, align)?;
+
+        let area = MemoryArea::new(
+            start,
+            size,
+            flags,
+            Backend::new_shared(start, size, source, align).ok_or(AxError::InvalidInput)?,
+        );
+        let result = match area.backend() {
+            Backend::Shared { pages, .. } => pages.clone(),
+            _ => unreachable!(),
+        };
+        self.areas
+            .map(area, &mut self.pt, false)
+            .map_err(mapping_err_to_ax_err)?;
+
+        Ok(result)
+    }
+
     /// Ensures that the specified virtual memory region is fully mapped.
     ///
     /// This function walks through the given virtual address range and attempts to ensure
@@ -343,6 +384,7 @@ impl AddrSpace {
                     pa_va_offset: _,
                     align,
                 } => align,
+                Backend::Shared { ref pages } => pages.align,
             };
 
             let unmap_start = start.max(area.start());
@@ -584,7 +626,7 @@ impl AddrSpace {
             let align = match area.backend() {
                 Backend::Alloc { align, .. } => *align,
                 // Linear-backed regions are usually allocated by the kernel and are shared
-                Backend::Linear { .. } => continue,
+                Backend::Linear { .. } | Backend::Shared { .. } => continue,
             };
 
             #[cfg(feature = "cow")]
