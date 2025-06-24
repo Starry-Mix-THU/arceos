@@ -2,7 +2,9 @@ use core::any::Any;
 
 use alloc::{borrow::ToOwned, string::String, sync::Arc};
 use axfs_ng_vfs::{
-    DeviceId, DirEntry, DirEntrySink, DirNode, DirNodeOps, FileNode, FileNodeOps, FilesystemOps, Metadata, MetadataUpdate, NodeOps, NodePermission, NodeType, Reference, VfsError, VfsResult, WeakDirEntry
+    DeviceId, DirEntry, DirEntrySink, DirNode, DirNodeOps, FileNode, FileNodeOps, FilesystemOps,
+    Metadata, MetadataUpdate, NodeOps, NodePermission, NodeType, Reference, VfsError, VfsResult,
+    WeakDirEntry,
 };
 use lock_api::RawMutex;
 use lwext4_rust::{FileAttr, InodeType};
@@ -168,7 +170,7 @@ impl<M: RawMutex + Send + Sync + 'static> DirNodeOps<M> for Inode<M> {
                 .to_owned();
             let ino = entry.ino() as u64;
             let node_type = into_vfs_type(entry.inode_type());
-            reader.next().map_err(into_vfs_err)?;
+            reader.step().map_err(into_vfs_err)?;
             if !sink.accept(&name, ino, node_type, reader.offset()) {
                 break;
             }
