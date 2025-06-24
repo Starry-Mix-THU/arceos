@@ -31,13 +31,13 @@ cfg-if = "1.0.0"
 slab = { version = "0.4.9", default-features = false }
 
 [dependencies.lwext4_rust]
-git = "https://github.com/Mivik/lwext4_rust"
+git = "https://github.com/Starry-Mix-THU/lwext4_rust"
 rev = "ebd38f6"
 default-features = false
 optional = true
 
 [dependencies.fatfs]
-git = "https://github.com/Mivik/rust-fatfs"
+git = "https://github.com/Starry-Mix-THU/rust-fatfs"
 rev = "2685439"
 default-features = false
 optional = true
