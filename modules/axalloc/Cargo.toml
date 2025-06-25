@@ -14,7 +14,9 @@ default = ["tlsf", "allocator/page-alloc-256m"]
 tlsf = ["allocator/tlsf"]
 slab = ["allocator/slab"]
 buddy = ["allocator/buddy"]
-page-alloc-64g = ["allocator/page-alloc-64g"] # Support up to 64G memory capacity
+page-alloc-64g = [
+    "allocator/page-alloc-64g",
+] # Support up to 64G memory capacity
 page-alloc-4g = ["allocator/page-alloc-4g"] # Support up to 4G memory capacity
 
 [dependencies]
@@ -23,4 +25,6 @@ cfg-if = "1.0"
 kspin = "0.1"
 memory_addr = "0.4"
 axerrno = "0.1"
-allocator = { git = "https://github.com/arceos-org/allocator.git", tag ="v0.1.1", features = ["bitmap", "page-alloc-4g"] }
+allocator = { git = "https://github.com/Starry-Mix-THU/allocator.git", rev = "d5feebd", features = [
+    "bitmap",
+] }

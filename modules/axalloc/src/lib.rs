@@ -113,8 +113,7 @@ impl GlobalAllocator {
                 let expand_size = old_size
                     .max(layout.size())
                     .next_power_of_two()
-                    .max(PAGE_SIZE)
-                    .min(self.available_pages() * PAGE_SIZE);
+                    .max(PAGE_SIZE);
 
                 let mut try_size = expand_size;
                 let min_size = PAGE_SIZE.max(layout.size());
@@ -132,9 +131,9 @@ impl GlobalAllocator {
                     debug!(
                         "expand heap memory: [{:#x}, {:#x})",
                         heap_ptr,
-                        heap_ptr + expand_size
+                        heap_ptr + try_size
                     );
-                    balloc.add_memory(heap_ptr, expand_size)?;
+                    balloc.add_memory(heap_ptr, try_size)?;
                     break;
                 }
             }
