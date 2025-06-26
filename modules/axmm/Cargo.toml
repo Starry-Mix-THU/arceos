@@ -11,6 +11,7 @@ documentation = "https://arceos-org.github.io/arceos/axmm/index.html"
 
 [features]
 default = []
+copy-from = ["page_table_multiarch/copy-from"]
 cow = ["dep:lazy_static"]
 
 [dependencies]
@@ -22,6 +23,7 @@ lazy_static = { version = "1.5", features = ["spin_no_std"], optional = true }
 log = "=0.4.21"
 axerrno = "0.1"
 lazyinit = "0.2"
+page_table_multiarch.workspace = true
 memory_addr = "0.4"
 kspin = "0.1"
 memory_set = "0.4"

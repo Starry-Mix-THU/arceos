@@ -75,24 +75,14 @@ impl AddrSpace {
     /// usually used to copy a portion of the kernel space mapping to the
     /// user space.
     ///
-    /// Note that on dropping, the copied PTEs will also be cleared, which could
-    /// taint the original page table. For workaround, you can use
-    /// [`AddrSpace::clear_mappings`].
-    ///
     /// Returns an error if the two address spaces overlap.
+    #[cfg(feature = "copy-from")]
     pub fn copy_mappings_from(&mut self, other: &AddrSpace) -> AxResult {
         if self.va_range.overlaps(other.va_range) {
             return ax_err!(InvalidInput, "address space overlap");
         }
         self.pt.copy_from(&other.pt, other.base(), other.size());
         Ok(())
-    }
-
-    /// Clears the page table mappings in the given address range.
-    ///
-    /// This should be used in pair with [`AddrSpace::copy_mappings_from`].
-    pub fn clear_mappings(&mut self, range: VirtAddrRange) {
-        self.pt.clear_copy_range(range.start, range.size());
     }
 
     /// The page table hardware can only map address ranges that are page-aligned.
