@@ -11,17 +11,18 @@
 extern crate log;
 extern crate alloc;
 
-mod page;
+// mod page;
 
 use allocator::{AllocResult, BaseAllocator, BitmapPageAllocator, ByteAllocator, PageAllocator};
 use core::alloc::{GlobalAlloc, Layout};
+use core::fmt;
 use core::ptr::NonNull;
 use kspin::SpinNoIrq;
 
 const PAGE_SIZE: usize = 0x1000;
 const MIN_HEAP_SIZE: usize = 0x8000; // 32 K
 
-pub use page::GlobalPage;
+// pub use page::GlobalPage;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "slab")] {
@@ -33,6 +34,55 @@ cfg_if::cfg_if! {
     } else if #[cfg(feature = "tlsf")] {
         /// The default byte allocator.
         pub type DefaultByteAllocator = allocator::TlsfByteAllocator;
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum UsageKind {
+    RustHeap,
+    UserMem,
+    PageTable,
+    Dma,
+}
+
+#[derive(Clone, Copy)]
+pub struct UsageStats([usize; 4]);
+
+impl UsageStats {
+    const fn new() -> Self {
+        Self([0; 4])
+    }
+
+    fn alloc(&mut self, kind: UsageKind, size: usize) {
+        self.0[kind as usize] += size;
+    }
+
+    fn dealloc(&mut self, kind: UsageKind, size: usize) {
+        self.0[kind as usize] -= size;
+    }
+}
+
+impl fmt::Debug for UsageStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct("UsageStats");
+        for kind in [
+            UsageKind::RustHeap,
+            UsageKind::UserMem,
+            UsageKind::PageTable,
+            UsageKind::Dma,
+        ] {
+            d.field(
+                match kind {
+                    UsageKind::RustHeap => "Rust Heap",
+                    UsageKind::UserMem => "User Memory",
+                    UsageKind::PageTable => "Page Table",
+                    UsageKind::Dma => "Dma",
+                },
+                &self.0[kind as usize],
+            );
+        }
+        d.finish()
     }
 }
 
@@ -50,6 +100,7 @@ cfg_if::cfg_if! {
 pub struct GlobalAllocator {
     balloc: SpinNoIrq<DefaultByteAllocator>,
     palloc: SpinNoIrq<BitmapPageAllocator<PAGE_SIZE>>,
+    stats: SpinNoIrq<UsageStats>,
 }
 
 impl GlobalAllocator {
@@ -58,6 +109,7 @@ impl GlobalAllocator {
         Self {
             balloc: SpinNoIrq::new(DefaultByteAllocator::new()),
             palloc: SpinNoIrq::new(BitmapPageAllocator::new()),
+            stats: SpinNoIrq::new(UsageStats::new()),
         }
     }
 
@@ -84,7 +136,7 @@ impl GlobalAllocator {
         let init_heap_size = MIN_HEAP_SIZE;
         self.palloc.lock().init(start_vaddr, size);
         let heap_ptr = self
-            .alloc_pages(init_heap_size / PAGE_SIZE, PAGE_SIZE)
+            .alloc_pages(init_heap_size / PAGE_SIZE, PAGE_SIZE, UsageKind::RustHeap)
             .unwrap();
         self.balloc.lock().init(heap_ptr, init_heap_size);
     }
@@ -107,6 +159,7 @@ impl GlobalAllocator {
         let mut balloc = self.balloc.lock();
         loop {
             if let Ok(ptr) = balloc.alloc(layout) {
+                self.stats.lock().alloc(UsageKind::RustHeap, layout.size());
                 return Ok(ptr);
             } else {
                 let old_size = balloc.total_bytes();
@@ -118,7 +171,11 @@ impl GlobalAllocator {
                 let mut try_size = expand_size;
                 let min_size = PAGE_SIZE.max(layout.size());
                 loop {
-                    let heap_ptr = match self.alloc_pages(try_size / PAGE_SIZE, PAGE_SIZE) {
+                    let heap_ptr = match self.alloc_pages(
+                        try_size / PAGE_SIZE,
+                        PAGE_SIZE,
+                        UsageKind::RustHeap,
+                    ) {
                         Ok(ptr) => ptr,
                         Err(err) => {
                             try_size /= 2;
@@ -148,6 +205,9 @@ impl GlobalAllocator {
     ///
     /// [`alloc`]: GlobalAllocator::alloc
     pub fn dealloc(&self, pos: NonNull<u8>, layout: Layout) {
+        self.stats
+            .lock()
+            .dealloc(UsageKind::RustHeap, layout.size());
         self.balloc.lock().dealloc(pos, layout)
     }
 
@@ -157,7 +217,15 @@ impl GlobalAllocator {
     ///
     /// `align_pow2` must be a power of 2, and the returned region bound will be
     /// aligned to it.
-    pub fn alloc_pages(&self, num_pages: usize, align_pow2: usize) -> AllocResult<usize> {
+    pub fn alloc_pages(
+        &self,
+        num_pages: usize,
+        align_pow2: usize,
+        kind: UsageKind,
+    ) -> AllocResult<usize> {
+        if !matches!(kind, UsageKind::RustHeap) {
+            self.stats.lock().alloc(kind, num_pages * PAGE_SIZE);
+        }
         self.palloc.lock().alloc_pages(num_pages, align_pow2)
     }
 
@@ -168,7 +236,8 @@ impl GlobalAllocator {
     /// behavior is undefined.
     ///
     /// [`alloc_pages`]: GlobalAllocator::alloc_pages
-    pub fn dealloc_pages(&self, pos: usize, num_pages: usize) {
+    pub fn dealloc_pages(&self, pos: usize, num_pages: usize, kind: UsageKind) {
+        self.stats.lock().dealloc(kind, num_pages * PAGE_SIZE);
         self.palloc.lock().dealloc_pages(pos, num_pages)
     }
 
@@ -190,6 +259,11 @@ impl GlobalAllocator {
     /// Returns the number of available pages in the page allocator.
     pub fn available_pages(&self) -> usize {
         self.palloc.lock().available_pages()
+    }
+
+    /// Returns the usage statistics of the allocator.
+    pub fn usage_stats(&self) -> UsageStats {
+        *self.stats.lock()
     }
 }
 

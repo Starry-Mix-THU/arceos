@@ -1,5 +1,5 @@
 use crate::page_iter_wrapper::{PAGE_SIZE_4K, PageIterWrapper};
-use axalloc::global_allocator;
+use axalloc::{UsageKind, global_allocator};
 use axhal::mem::{phys_to_virt, virt_to_phys};
 use axhal::paging::{MappingFlags, PageSize, PageTable};
 use memory_addr::{PhysAddr, VirtAddr};
@@ -31,7 +31,11 @@ use super::Backend;
 pub(crate) fn alloc_frame(zeroed: bool, align: PageSize) -> Option<PhysAddr> {
     let page_size: usize = align.into();
     let num_pages = page_size / PAGE_SIZE_4K;
-    let vaddr = VirtAddr::from(global_allocator().alloc_pages(num_pages, page_size).ok()?);
+    let vaddr = VirtAddr::from(
+        global_allocator()
+            .alloc_pages(num_pages, page_size, UsageKind::UserMem)
+            .ok()?,
+    );
     if zeroed {
         unsafe { core::ptr::write_bytes(vaddr.as_mut_ptr(), 0, page_size) };
     }
@@ -71,7 +75,7 @@ pub(crate) fn dealloc_frame(frame: PhysAddr, align: PageSize) {
     let vaddr = phys_to_virt(frame);
     let page_size: usize = align.into();
     let num_pages = page_size / PAGE_SIZE_4K;
-    global_allocator().dealloc_pages(vaddr.as_usize(), num_pages);
+    global_allocator().dealloc_pages(vaddr.as_usize(), num_pages, UsageKind::UserMem);
 }
 
 impl Backend {
