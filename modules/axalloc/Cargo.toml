@@ -25,6 +25,4 @@ cfg-if = "1.0"
 kspin = "0.1"
 memory_addr = "0.4"
 axerrno = "0.1"
-allocator = { git = "https://github.com/Starry-Mix-THU/allocator.git", rev = "d5feebd", features = [
-    "bitmap",
-] }
+allocator = { workspace = true, features = ["bitmap"] }

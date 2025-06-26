@@ -11,8 +11,9 @@ pub(crate) use crate::run_queue::{current_run_queue, select_run_queue};
 
 #[doc(cfg(feature = "multitask"))]
 pub use crate::task::{CurrentTask, TaskId, TaskInner};
-#[doc(cfg(feature = "multitask"))]
-pub use crate::task_ext::{TaskExtMut, TaskExtRef};
+#[doc(cfg(all(feature = "multitask", feature = "task-ext")))]
+#[cfg(feature = "task-ext")]
+pub use crate::task::{TaskExt, TaskExtProxy};
 #[doc(cfg(feature = "multitask"))]
 pub use crate::wait_queue::WaitQueue;
 

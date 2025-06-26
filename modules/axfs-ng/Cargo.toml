@@ -10,25 +10,23 @@ homepage.workspace = true
 default = []
 fat = ["dep:fatfs"]
 ext4 = ["dep:lwext4_rust"]
-thread-local = ["dep:axns", "dep:axsync"]
 std = ["lwext4_rust?/std"]
 
 [dependencies]
 axdriver = { workspace = true, features = ["block"] }
 axerrno = "0.1.0"
 axio = { version = "0.1.1", features = ["alloc"] }
-axns = { workspace = true, optional = true }
-axsync = { workspace = true, optional = true }
+axsync = { workspace = true }
 
+axfs-ng-vfs = { workspace = true }
 bitflags = "2.9.0"
+cfg-if = "1.0.0"
 chrono = { version = "0.4.40", default-features = false }
 lock_api = "0.4.12"
 log = "=0.4.21"
-spin = { version = "0.10.0", features = ["lock_api"] }
-
-axfs-ng-vfs = { workspace = true }
-cfg-if = "1.0.0"
+scope-local = "0.1"
 slab = { version = "0.4.9", default-features = false }
+spin = { version = "0.9", features = ["lock_api"] }
 
 [dependencies.lwext4_rust]
 git = "https://github.com/Starry-Mix-THU/lwext4_rust"

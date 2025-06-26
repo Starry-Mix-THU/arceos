@@ -14,7 +14,7 @@ use axhal::cpu::this_cpu_id;
 
 use crate::task::{CurrentTask, TaskState};
 use crate::wait_queue::WaitQueueGuard;
-use crate::{AxCpuMask, AxTaskRef, Scheduler, TaskInner, WaitQueue};
+use crate::{AxCpuMask, AxTaskRef, Scheduler, TaskExt, TaskInner, WaitQueue};
 
 macro_rules! percpu_static {
     ($(
@@ -544,6 +544,9 @@ impl AxRunQueue {
         // such that any running task will have this set.
         #[cfg(feature = "smp")]
         next_task.set_on_cpu(true);
+
+        prev_task.task_ext().map(|ext| ext.on_leave());
+        next_task.task_ext().map(|ext| ext.on_enter());
 
         unsafe {
             let prev_ctx_ptr = prev_task.ctx_mut_ptr();

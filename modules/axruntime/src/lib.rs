@@ -160,18 +160,18 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) -> ! {
 
         #[cfg(feature = "fs")]
         {
-            use axdriver::prelude::*;
+            axfs_ng::ROOT_FS_CONTEXT.call_once(|| {
+                use axdriver::prelude::*;
 
-            let dev = all_devices
-                .block
-                .take_one()
-                .expect("No block device found!");
-            info!("Block device: {}", dev.device_name());
-            let fs = axfs_ng::fs::new_default(dev).expect("Failed to initialize filesystem");
-            let mount = axfs_ng_vfs::Mountpoint::new_root(&fs);
-            axfs_ng::FS_CONTEXT.init_new(axsync::Mutex::new(axfs_ng::FsContext::new(
-                mount.root_location(),
-            )));
+                let dev = all_devices
+                    .block
+                    .take_one()
+                    .expect("No block device found!");
+                info!("Block device: {}", dev.device_name());
+                let fs = axfs_ng::fs::new_default(dev).expect("Failed to initialize filesystem");
+                let mount = axfs_ng_vfs::Mountpoint::new_root(&fs);
+                axfs_ng::FsContext::new(mount.root_location())
+            });
         }
 
         #[cfg(feature = "net")]
@@ -195,8 +195,6 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) -> ! {
         info!("Initialize thread local storage...");
         init_tls();
     }
-
-    ctor_bare::call_ctors();
 
     info!("Primary CPU {} init OK.", cpu_id);
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);

@@ -12,17 +12,16 @@ members = [
     "modules/axmm",
     "modules/axdma",
     "modules/axnet",
-    "modules/axns",
     "modules/axruntime",
     "modules/axsync",
     "modules/axtask",
 
     "api/axfeat",
-    "api/arceos_api",
-    "api/arceos_posix_api",
+    # "api/arceos_api",
+    # "api/arceos_posix_api",
 
-    "ulib/axstd",
-    "ulib/axlibc",
+    # "ulib/axstd",
+    # "ulib/axlibc",
 
     "examples/helloworld",
     "examples/httpclient",
@@ -56,18 +55,17 @@ axdisplay = { path = "modules/axdisplay" }
 axdriver = { path = "modules/axdriver" }
 axfs-ng = { path = "modules/axfs-ng", default-features = false, features = [
     "fat",
-    "thread-local",
 ] }
 axhal = { path = "modules/axhal" }
 axlog = { path = "modules/axlog" }
 axmm = { path = "modules/axmm" }
 axnet = { path = "modules/axnet" }
-axns = { path = "modules/axns" }
 axruntime = { path = "modules/axruntime" }
 axsync = { path = "modules/axsync" }
 axtask = { path = "modules/axtask" }
 axdma = { path = "modules/axdma" }
 
+allocator = { git = "https://github.com/Starry-Mix-THU/allocator.git", rev = "d5feebd" }
 axfs-ng-vfs = { git = "https://github.com/Starry-Mix-THU/axfs-ng-vfs", rev = "f488cdf" }
 
 [profile.release]
