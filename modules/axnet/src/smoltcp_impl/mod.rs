@@ -12,7 +12,7 @@ use core::ops::DerefMut;
 
 use axdriver::prelude::*;
 use axdriver_net::{DevError, NetBufPtr};
-use axhal::time::NANOS_PER_MICROS;
+use axhal::time::{NANOS_PER_MICROS, wall_time_nanos};
 use axsync::Mutex;
 use lazyinit::LazyInit;
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet};
@@ -150,7 +150,7 @@ impl<'a> SocketSetWrapper<'a> {
 
     pub fn poll_interfaces(&self) {
         LOOPBACK.lock().poll(
-            Instant::from_micros_const((0 / NANOS_PER_MICROS) as i64),
+            Instant::from_micros_const((wall_time_nanos() / NANOS_PER_MICROS) as i64),
             LOOPBACK_DEV.lock().deref_mut(),
             &mut self.0.lock(),
         );
