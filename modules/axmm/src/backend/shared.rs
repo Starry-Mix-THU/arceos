@@ -45,7 +45,7 @@ impl Backend {
         for (i, frame) in pages.iter().enumerate() {
             let addr = start + i * pages.align as usize;
             if let Ok(tlb) = pt.map(addr, *frame, pages.align, flags) {
-                tlb.ignore(); // TLB flush on map is unnecessary, as there are no outdated mappings.
+                tlb.flush();
             } else {
                 return false;
             }
