@@ -86,9 +86,9 @@ impl WaitQueue {
     ///
     /// Note that even other tasks notify this task, it will not wake up until
     /// the condition becomes true.
-    pub fn wait_until<F>(&self, condition: F)
+    pub fn wait_until<F>(&self, mut condition: F)
     where
-        F: Fn() -> bool,
+        F: FnMut() -> bool,
     {
         let curr = crate::current();
         loop {
@@ -132,9 +132,9 @@ impl WaitQueue {
     /// Note that even other tasks notify this task, it will not wake up until
     /// the above conditions are met.
     #[cfg(feature = "irq")]
-    pub fn wait_timeout_until<F>(&self, dur: core::time::Duration, condition: F) -> bool
+    pub fn wait_timeout_until<F>(&self, dur: core::time::Duration, mut condition: F) -> bool
     where
-        F: Fn() -> bool,
+        F: FnMut() -> bool,
     {
         let curr = crate::current();
         let deadline = axhal::time::wall_time() + dur;
