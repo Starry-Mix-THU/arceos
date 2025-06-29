@@ -47,7 +47,7 @@ raw-cpuid = "11.5"
 x86_rtc = { version = "0.1", optional = true }
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
-riscv = "0.13"
+riscv = "0.14"
 sbi-rt = { version = "0.0.3", features = ["legacy"] }
 riscv_goldfish = { version = "0.1", optional = true }
 
