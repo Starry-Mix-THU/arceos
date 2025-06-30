@@ -320,7 +320,7 @@ impl<M: RawMutex> File<M> {
     ///
     /// If `data_only` is `true`, only the file data is synced, not the metadata.
     pub fn sync(&self, data_only: bool) -> VfsResult<()> {
-        self.access(FileFlags::READ)?.sync(data_only)
+        self.inner.sync(data_only)
     }
 
     /// Truncates or extends the underlying file, updating the size of this file to become `size`.
