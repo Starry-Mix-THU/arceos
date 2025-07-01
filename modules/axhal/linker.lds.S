@@ -10,10 +10,12 @@ SECTIONS
 
     .text : ALIGN(4K) {
         _stext = .;
+        __executable_start = .;
         *(.text.boot)
         *(.text .text.*)
         . = ALIGN(4K);
         _etext = .;
+        __etext = .;
     }
 
     _srodata = .;
@@ -82,10 +84,17 @@ SECTIONS
         _ebss = .;
     }
 
+    .eh_frame : ALIGN(8) {
+        __eh_frame = .;
+        KEEP (*(.eh_frame)) *(.eh_frame.*)
+    }
+    . = ALIGN(4K);
+    __eh_frame_end = .;
+
     _ekernel = .;
 
 	/DISCARD/ : {
-        *(.comment) *(.gnu*) *(.note*) *(.eh_frame*)
+        *(.comment) *(.gnu*) *(.note*)
     }
 }
 

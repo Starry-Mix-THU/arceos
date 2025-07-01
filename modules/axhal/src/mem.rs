@@ -110,6 +110,13 @@ fn kernel_image_regions() -> impl Iterator<Item = MemRegion> {
             flags: MemRegionFlags::RESERVED | MemRegionFlags::READ | MemRegionFlags::WRITE,
             name: ".bss",
         },
+        #[cfg(feature = "backtrace")]
+        MemRegion {
+            paddr: virt_to_phys((__eh_frame as usize).into()),
+            size: __eh_frame_end as usize - __eh_frame as usize,
+            flags: MemRegionFlags::RESERVED | MemRegionFlags::READ,
+            name: ".eh_frame",
+        },
     ]
     .into_iter()
 }
@@ -162,4 +169,10 @@ unsafe extern "C" {
     fn _ekernel();
     fn boot_stack();
     fn boot_stack_top();
+}
+
+#[cfg(feature = "backtrace")]
+unsafe extern "C" {
+    fn __eh_frame();
+    fn __eh_frame_end();
 }

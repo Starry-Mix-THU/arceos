@@ -1,0 +1,26 @@
+[package]
+name = "axbacktrace"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Mivik <mivikq@gmail.com>"]
+license.workspace = true
+homepage.workspace = true
+
+[features]
+
+[dependencies]
+cfg-if = "1.0.1"
+log = "=0.4.21"
+
+[target.'cfg(not(target_arch = "loongarch64"))'.dependencies.unwinding]
+version = "=0.2.7"
+default-features = false
+features = [
+    "unwinder",
+    "fde-static",
+    "personality",
+    "panic",
+    "dwarf-expr",
+    "hide-trace",
+]
+optional = true

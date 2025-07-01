@@ -214,6 +214,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "axbacktrace"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "log",
+ "unwinding",
+]
+
+[[package]]
 name = "axconfig"
 version = "0.1.0"
 dependencies = [
@@ -356,6 +365,7 @@ name = "axfeat"
 version = "0.1.0"
 dependencies = [
  "axalloc",
+ "axbacktrace",
  "axdisplay",
  "axdriver",
  "axfs-ng",
@@ -701,9 +711,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
 
 [[package]]
 name = "chrono"
@@ -984,6 +994,12 @@ dependencies = [
  "r-efi",
  "wasi",
 ]
+
+[[package]]
+name = "gimli"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93563d740bc9ef04104f9ed6f86f1e3275c2cdafb95664e26584b9ca807a8ffe"
 
 [[package]]
 name = "glob"
@@ -1875,6 +1891,15 @@ name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+
+[[package]]
+name = "unwinding"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d80f6c2bfede213d9a90b4a14f3eb99b84e33c52df6c1a15de0a100f5a88751"
+dependencies = [
+ "gimli",
+]
 
 [[package]]
 name = "utf8parse"

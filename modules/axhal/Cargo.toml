@@ -18,6 +18,7 @@ irq = []
 tls = ["alloc"]
 rtc = ["x86_rtc", "riscv_goldfish", "arm_pl031", "chrono"]
 uspace = ["paging"]
+backtrace = []
 default = []
 
 [dependencies]

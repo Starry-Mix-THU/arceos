@@ -67,7 +67,11 @@ log-level-info = ["axlog/log-level-info"]
 log-level-debug = ["axlog/log-level-debug"]
 log-level-trace = ["axlog/log-level-trace"]
 
+# Backtrace
+backtrace = ["axhal/backtrace", "axbacktrace/unwinding"]
+
 [dependencies]
+axbacktrace = { workspace = true }
 axruntime = { workspace = true }
 axhal = { workspace = true }
 axlog = { workspace = true }
