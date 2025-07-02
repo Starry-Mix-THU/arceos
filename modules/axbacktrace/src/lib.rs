@@ -5,10 +5,12 @@ extern crate alloc;
 #[cfg(feature = "addr2line")]
 mod dwarf;
 
+#[cfg(feature = "addr2line")]
 use core::{
     arch::asm,
     fmt,
     ops::Range,
+    slice,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -19,7 +21,7 @@ use kspin::SpinNoIrq;
 pub use cfg_if::cfg_if;
 
 #[cfg(feature = "addr2line")]
-pub use dwarf::{DwarfError, set_dwarf_sections};
+pub use dwarf::{DwarfError, DwarfReader, set_dwarf_sections};
 
 /// Represents a single stack frame in the unwound stack.
 #[repr(C)]
@@ -207,6 +209,48 @@ impl Backtrace {
             inner: Inner::Captured(ips),
         }
     }
+
+    /// Visit each stack frame in the captured backtrace in order.
+    ///
+    /// Returns `None` if DWARF is not available or the backtrace is not
+    /// captured.
+    #[cfg(feature = "addr2line")]
+    pub fn frames<'a>(&'a self) -> Option<Frames<'a>> {
+        let Inner::Captured(capture) = &self.inner else {
+            return None;
+        };
+
+        let context = unsafe {
+            #[allow(static_mut_refs)]
+            dwarf::CONTEXT.clone()?
+        };
+
+        Some(Frames {
+            context,
+            inner: capture.iter(),
+        })
+    }
+}
+
+/// An "iterator" over the stack frames in a captured backtrace. Note that it
+/// does not implement `core::iter::Iterator` because the returned frames
+/// reference the iterator itself.
+///
+/// See [`Backtrace::frames`].
+pub struct Frames<'a> {
+    context: Arc<addr2line::Context<DwarfReader>>,
+    inner: slice::Iter<'a, usize>,
+}
+impl Frames<'_> {
+    /// Returns the next batch of stack frames from the captured backtrace.
+    ///
+    /// Each batch contains a set of frames that can be iterated over.
+    pub fn next_batch(
+        &mut self,
+    ) -> Option<Result<addr2line::FrameIter<DwarfReader>, gimli::Error>> {
+        let ip = self.inner.next()?;
+        Some(self.context.find_frames(*ip as _).skip_all_loads())
+    }
 }
 
 #[cfg(feature = "addr2line")]
@@ -258,24 +302,19 @@ impl fmt::Display for Backtrace {
             Inner::Captured(capture) => {
                 writeln!(f, "Backtrace:")?;
                 #[cfg(feature = "addr2line")]
-                {
-                    let context = unsafe {
-                        #[allow(static_mut_refs)]
-                        dwarf::CONTEXT.clone()
-                    };
-                    if let Some(context) = context {
-                        let mut cnt = 0;
-                        for ip in capture {
-                            if let Ok(mut frames) = context.find_frames(*ip as _).skip_all_loads() {
-                                while let Ok(Some(frame)) = frames.next() {
-                                    write!(f, "{cnt:>4}")?;
-                                    fmt_frame(f, &frame)?;
-                                    cnt += 1;
-                                }
-                            }
+                if let Some(mut frames) = self.frames() {
+                    let mut cnt = 0;
+                    while let Some(batch) = frames.next_batch() {
+                        let Ok(mut batch) = batch else {
+                            continue;
+                        };
+                        while let Ok(Some(frame)) = batch.next() {
+                            write!(f, "{cnt:>4}")?;
+                            fmt_frame(f, &frame)?;
+                            cnt += 1;
                         }
-                        return Ok(());
                     }
+                    return Ok(());
                 }
                 for ip in capture {
                     writeln!(f, "  {ip:#x}")?;

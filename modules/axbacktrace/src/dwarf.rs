@@ -4,7 +4,7 @@ use gimli::DwarfSections;
 use object::{Endianness, Object, ObjectSection, ReadCache, ReadCacheOps};
 use thiserror::Error;
 
-pub(crate) static mut CONTEXT: Option<Arc<Context<Reader>>> = None;
+pub(crate) static mut CONTEXT: Option<Arc<Context<DwarfReader>>> = None;
 
 #[derive(Debug, Error)]
 pub enum DwarfError {
@@ -44,7 +44,8 @@ pub fn set_dwarf_sections(reader: impl ReadCacheOps) -> Result<(), DwarfError> {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct RelocationMap(Arc<object::read::RelocationMap>);
+#[doc(hidden)]
+pub struct RelocationMap(Arc<object::read::RelocationMap>);
 
 impl gimli::read::Relocate for RelocationMap {
     fn relocate_address(&self, offset: usize, value: u64) -> gimli::Result<u64> {
@@ -62,9 +63,10 @@ pub(crate) struct Section {
     relocations: RelocationMap,
 }
 
-type Reader = gimli::RelocateReader<gimli::EndianArcSlice<gimli::RunTimeEndian>, RelocationMap>;
+pub type DwarfReader =
+    gimli::RelocateReader<gimli::EndianArcSlice<gimli::RunTimeEndian>, RelocationMap>;
 
-fn borrow_section(section: &Section, endian: gimli::RunTimeEndian) -> Reader {
+fn borrow_section(section: &Section, endian: gimli::RunTimeEndian) -> DwarfReader {
     let slice = gimli::EndianArcSlice::new(section.data.clone(), endian);
     gimli::RelocateReader::new(slice, section.relocations.clone())
 }
