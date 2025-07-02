@@ -32,8 +32,9 @@ pub struct StackFrame {
     pub ip: usize,
 }
 impl StackFrame {
-    pub fn call_pc(&self) -> usize {
-        self.ip - 4
+    // See https://github.com/rust-lang/backtrace-rs/blob/b65ab935fb2e0d59dba8966ffca09c9cc5a5f57c/src/symbolize/mod.rs#L145
+    pub fn adjust_ip(&self) -> usize {
+        self.ip.wrapping_sub(1)
     }
 }
 
@@ -198,7 +199,7 @@ impl Backtrace {
                 {
                     return false;
                 }
-                ips.push(frame.call_pc());
+                ips.push(frame.adjust_ip());
                 true
             });
         }
@@ -209,7 +210,24 @@ impl Backtrace {
 }
 
 #[cfg(feature = "addr2line")]
-fn fmt_location(f: &mut fmt::Formatter<'_>, location: &addr2line::Location) -> fmt::Result {
+fn fmt_frame<R: gimli::Reader>(
+    f: &mut fmt::Formatter<'_>,
+    frame: &addr2line::Frame<R>,
+) -> fmt::Result {
+    use alloc::borrow::Cow;
+
+    let func = frame
+        .function
+        .as_ref()
+        .and_then(|func| func.demangle().ok())
+        .unwrap_or(Cow::Borrowed("<unknown>"));
+    writeln!(f, ": {func}")?;
+
+    let Some(location) = &frame.location else {
+        return Ok(());
+    };
+    write!(f, "            at ")?;
+
     let Some(file) = &location.file else {
         return write!(f, "??");
     };
@@ -222,6 +240,8 @@ fn fmt_location(f: &mut fmt::Formatter<'_>, location: &addr2line::Location) -> f
         return Ok(());
     };
     write!(f, ":{col}")?;
+
+    writeln!(f)?;
 
     Ok(())
 }
@@ -244,19 +264,21 @@ impl fmt::Display for Backtrace {
                         dwarf::CONTEXT.clone()
                     };
                     if let Some(context) = context {
+                        let mut cnt = 0;
                         for ip in capture {
-                            write!(f, "  0x{ip:x}")?;
-                            if let Ok(Some(location)) = context.find_location(*ip as u64) {
-                                write!(f, " - ")?;
-                                fmt_location(f, &location)?;
+                            if let Ok(mut frames) = context.find_frames(*ip as _).skip_all_loads() {
+                                while let Ok(Some(frame)) = frames.next() {
+                                    write!(f, "{cnt:>4}")?;
+                                    fmt_frame(f, &frame)?;
+                                    cnt += 1;
+                                }
                             }
-                            writeln!(f)?;
                         }
                         return Ok(());
                     }
                 }
                 for ip in capture {
-                    writeln!(f, "  0x{ip:x}")?;
+                    writeln!(f, "  {ip:#x}")?;
                 }
                 Ok(())
             }
