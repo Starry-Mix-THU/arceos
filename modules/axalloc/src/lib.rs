@@ -269,7 +269,7 @@ impl GlobalAllocator {
 
 #[cfg(feature = "tracking")]
 mod tracking {
-    use core::alloc::Layout;
+    use core::{alloc::Layout, ops::Range};
 
     use alloc::collections::btree_map::BTreeMap;
     use axbacktrace::Backtrace;
@@ -321,15 +321,15 @@ mod tracking {
         STATE.lock().generation
     }
 
-    /// Visits all allocations made by the global allocator since the given
-    /// generation.
-    pub fn new_allocations_since(generation: u64, visitor: impl FnMut(&AllocationInfo)) {
+    /// Visits all allocations made by the global allocator within the given
+    /// generation range.
+    pub fn allocations_in(range: Range<u64>, visitor: impl FnMut(&AllocationInfo)) {
         with_state(|state| {
             state
                 .unwrap()
                 .map
                 .values()
-                .filter(move |info| info.generation >= generation)
+                .filter(move |info| range.contains(&info.generation))
                 .for_each(visitor)
         });
     }
@@ -382,12 +382,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
             None => inner(),
             Some(state) => {
                 let address = ptr.as_ptr() as usize;
-                if state.map.remove(&address).is_none() {
-                    warn!(
-                        "dealloc ptr not allocated by global allocator: {:#x}",
-                        address
-                    );
-                }
+                state.map.remove(&address);
                 inner()
             }
         });

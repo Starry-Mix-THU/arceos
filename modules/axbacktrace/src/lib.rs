@@ -130,6 +130,7 @@ pub const fn is_enabled() -> bool {
 }
 
 #[allow(dead_code)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 enum Inner {
     Unsupported,
     Disabled,
@@ -137,6 +138,7 @@ enum Inner {
 }
 
 /// A captured OS thread stack backtrace.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Backtrace {
     inner: Inner,
 }
