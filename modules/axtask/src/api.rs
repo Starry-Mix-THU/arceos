@@ -1,5 +1,7 @@
 //! Task APIs for multi-task configuration.
 
+use core::convert::Infallible;
+
 use alloc::{
     string::String,
     sync::{Arc, Weak},
@@ -120,7 +122,7 @@ pub fn spawn_task(task: TaskInner) -> AxTaskRef {
 /// Returns the task reference.
 pub fn spawn_raw<F>(f: F, name: String, stack_size: usize) -> AxTaskRef
 where
-    F: FnOnce() + Send + 'static,
+    F: FnOnce() -> Infallible + Send + 'static,
 {
     spawn_task(TaskInner::new(f, name, stack_size))
 }
@@ -133,7 +135,7 @@ where
 /// Returns the task reference.
 pub fn spawn<F>(f: F) -> AxTaskRef
 where
-    F: FnOnce() + Send + 'static,
+    F: FnOnce() -> Infallible + Send + 'static,
 {
     spawn_raw(f, "".into(), axconfig::TASK_STACK_SIZE)
 }
@@ -170,7 +172,10 @@ pub fn set_current_affinity(cpumask: AxCpuMask) -> bool {
             const MIGRATION_TASK_STACK_SIZE: usize = 4096;
             // Spawn a new migration task for migrating.
             let migration_task = TaskInner::new(
-                move || crate::run_queue::migrate_entry(curr),
+                move || {
+                    crate::run_queue::migrate_entry(curr);
+                    crate::exit(0);
+                },
                 "migration-task".into(),
                 MIGRATION_TASK_STACK_SIZE,
             )

@@ -21,6 +21,7 @@ fn test_sched_fifo() {
                 axtask::yield_now();
                 let order = FINISHED_TASKS.fetch_add(1, Ordering::Relaxed);
                 assert_eq!(order, i); // FIFO scheduler
+                axtask::exit(0);
             },
             format!("T{}", i),
             0x1000,

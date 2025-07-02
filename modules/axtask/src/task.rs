@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, string::String, sync::Arc};
+use core::convert::Infallible;
 use core::ops::Deref;
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU64, Ordering};
 use core::{alloc::Layout, cell::UnsafeCell, fmt, ptr::NonNull};
@@ -51,7 +52,7 @@ pub struct TaskInner {
     is_idle: bool,
     is_init: bool,
 
-    entry: Option<*mut dyn FnOnce()>,
+    entry: Option<*mut dyn FnOnce() -> Infallible>,
     state: AtomicU8,
 
     /// CPU affinity mask.
@@ -120,7 +121,7 @@ impl TaskInner {
     /// Create a new task with the given entry function and stack size.
     pub fn new<F>(entry: F, name: String, stack_size: usize) -> Self
     where
-        F: FnOnce() + Send + 'static,
+        F: FnOnce() -> Infallible + Send + 'static,
     {
         let mut t = Self::new_common(TaskId::new(), name);
         debug!("new task: {}", t.id_name());
@@ -438,6 +439,12 @@ impl TaskInner {
     pub(crate) fn set_on_cpu(&self, on_cpu: bool) {
         self.on_cpu.store(on_cpu, Ordering::Release)
     }
+
+    pub(crate) unsafe fn drop_entry(&self) {
+        if let Some(entry) = self.entry {
+            drop(unsafe { Box::from_raw(entry) });
+        }
+    }
 }
 
 impl fmt::Debug for TaskInner {
@@ -555,7 +562,9 @@ extern "C" fn task_entry() -> ! {
     axhal::arch::enable_irqs();
     let task = crate::current();
     if let Some(entry) = task.entry {
-        unsafe { Box::from_raw(entry)() };
+        #[allow(unreachable_code)]
+        match unsafe { Box::from_raw(entry)() } {}
+    } else {
+        crate::exit(0);
     }
-    crate::exit(0);
 }
