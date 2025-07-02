@@ -110,13 +110,15 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) -> ! {
         target = {}\n\
         build_mode = {}\n\
         log_level = {}\n\
-        smp = {}\n\
+        backtrace = {}\n\
+        smp = {}\n
         ",
         axconfig::ARCH,
         axconfig::PLATFORM,
         option_env!("AX_TARGET").unwrap_or(""),
         option_env!("AX_MODE").unwrap_or(""),
         option_env!("AX_LOG").unwrap_or(""),
+        option_env!("AX_BACKTRACE").unwrap_or(""),
         axconfig::SMP,
     );
     #[cfg(feature = "rtc")]

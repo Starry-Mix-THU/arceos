@@ -27,6 +27,7 @@ rtc = []
 [dependencies]
 axhal = { workspace = true }
 axlog = { workspace = true }
+axbacktrace = { workspace = true }
 axconfig = { workspace = true }
 axalloc = { workspace = true, optional = true }
 axmm = { workspace = true, optional = true }

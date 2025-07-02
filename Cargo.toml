@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "modules/axalloc",
+    "modules/axbacktrace",
     "modules/axconfig",
     "modules/axdisplay",
     "modules/axdriver",
@@ -27,7 +28,7 @@ members = [
     "examples/httpclient",
     "examples/httpserver",
     "examples/httpserver",
-    "examples/shell", "modules/axbacktrace",
+    "examples/shell",
 ]
 
 [workspace.package]

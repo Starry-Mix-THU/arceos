@@ -10,12 +10,14 @@ repository = "https://github.com/arceos-org/arceos/tree/main/modules/axmm"
 documentation = "https://arceos-org.github.io/arceos/axmm/index.html"
 
 [features]
-default = []
+default = ["backtrace"]
+backtrace = ["dep:axbacktrace"]
 copy-from = ["page_table_multiarch/copy-from"]
 cow = ["dep:lazy_static"]
 
 [dependencies]
 axhal = { workspace = true, features = ["paging"] }
+axbacktrace = { workspace = true, optional = true }
 axalloc = { workspace = true }
 axconfig = { workspace = true }
 

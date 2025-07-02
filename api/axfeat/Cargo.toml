@@ -68,7 +68,7 @@ log-level-debug = ["axlog/log-level-debug"]
 log-level-trace = ["axlog/log-level-trace"]
 
 # Backtrace
-backtrace = ["axhal/backtrace", "axbacktrace/unwinding"]
+backtrace = ["axbacktrace/enable", "axmm/backtrace"]
 
 [dependencies]
 axbacktrace = { workspace = true }
@@ -79,6 +79,7 @@ axalloc = { workspace = true, optional = true }
 axdriver = { workspace = true, optional = true }
 axfs-ng = { workspace = true, optional = true }
 axnet = { workspace = true, optional = true }
+axmm = { workspace = true, optional = true }
 axdisplay = { workspace = true, optional = true }
 axsync = { workspace = true, optional = true }
 axtask = { workspace = true, optional = true }

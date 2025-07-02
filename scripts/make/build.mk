@@ -34,7 +34,9 @@ else ifeq ($(filter $(MAKECMDGOALS),defconfig oldconfig clippy),)
     RUSTFLAGS += $(RUSTFLAGS_LINK_ARGS)
   endif
   $(if $(V), $(info RUSTFLAGS: "$(RUSTFLAGS)"))
-  RUSTFLAGS += -C force-unwind-tables=yes
+  ifeq ($(BACKTRACE), y)
+    RUSTFLAGS += -C force-frame-pointers
+  endif
   export RUSTFLAGS
 endif
 
