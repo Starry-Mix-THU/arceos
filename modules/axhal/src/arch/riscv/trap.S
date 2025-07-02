@@ -5,15 +5,15 @@
     csrr    t0, sepc
     csrr    t1, sstatus
     csrrw   t2, sscratch, zero          // save sscratch (sp) and zero it
-    STR     t0, sp, 31                  // tf.sepc
-    STR     t1, sp, 32                  // tf.sstatus
-    STR     t2, sp, 1                   // tf.regs.sp
+    STR     t0, sp, 32                  // tf.sepc
+    STR     t1, sp, 33                  // tf.sstatus
+    STR     t2, sp, 2                   // tf.regs.sp
 
 .if \from_user == 1
-    LDR     t0, sp, 2                   // load supervisor gp
-    LDR     t1, sp, 3                   // load supervisor tp
-    STR     gp, sp, 2                   // save user gp and tp
-    STR     tp, sp, 3
+    LDR     t0, sp, 3                   // load supervisor gp and tp
+    LDR     t1, sp, 4
+    STR     gp, sp, 3                   // save user gp and tp
+    STR     tp, sp, 4
     mv      gp, t0
     mv      tp, t1
 .endif
@@ -21,10 +21,10 @@
 
 .macro RESTORE_REGS, from_user
 .if \from_user == 1
-    LDR     t1, sp, 2                   // load user gp and tp
-    LDR     t0, sp, 3
-    STR     gp, sp, 2                   // save supervisor gp
-    STR     tp, sp, 3                   // save supervisor gp and tp
+    LDR     t1, sp, 3                   // load user gp and tp
+    LDR     t0, sp, 4
+    STR     gp, sp, 3                   // save supervisor gp and tp
+    STR     tp, sp, 4
     mv      gp, t1
     mv      tp, t0
     addi    t0, sp, {trapframe_size}    // put supervisor sp to scratch
@@ -32,10 +32,10 @@
 .endif
 
     // restore sepc
-    LDR     t0, sp, 31
+    LDR     t0, sp, 32
     csrw    sepc, t0
     // restore sstatus, but don't change FS
-    LDR     t0, sp, 32              // t0 = sstatus to restore
+    LDR     t0, sp, 33              // t0 = sstatus to restore
     csrr    t1, sstatus             // t1 = current sstatus
     li      t2, 0x6000              // t2 = mask for FS
     and     t1, t1, t2              // t1 = current FS
@@ -45,7 +45,7 @@
     csrw    sstatus, t0             // restore sstatus
 
     POP_GENERAL_REGS
-    LDR     sp, sp, 1                   // load sp from tf.regs.sp
+    LDR     sp, sp, 2                   // load sp from tf.regs.sp
 .endm
 
 .section .text
