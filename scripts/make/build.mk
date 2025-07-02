@@ -56,7 +56,7 @@ $(OUT_BIN): _cargo_build $(OUT_ELF)
 	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --strip-all -O binary $@)
 
 $(OUT_DBG): _cargo_build $(OUT_ELF)
-	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --only-keep-debug -O binary $@)
+	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --only-keep-debug $@)
 
 ifeq ($(ARCH), aarch64)
   uimg_arch := arm64
