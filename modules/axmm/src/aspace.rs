@@ -483,8 +483,7 @@ impl AddrSpace {
     /// Returns an error if the address range is out of the address space or not
     /// aligned.
     pub fn protect(&mut self, start: VirtAddr, size: usize, flags: MappingFlags) -> AxResult {
-        // Populate the area first, which also checks the address range for us.
-        self.populate_area(start, size, flags)?;
+        self.validate_region(start, size, PageSize::Size4K)?;
 
         self.areas
             .protect(start, size, |_| Some(flags), &mut self.pt)
