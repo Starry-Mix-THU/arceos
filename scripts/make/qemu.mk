@@ -50,6 +50,10 @@ qemu_args-$(BLK) += \
   -device virtio-blk-$(vdev-suffix),drive=disk0 \
   -drive id=disk0,if=none,format=raw,file=$(DISK_IMG)
 
+qemu_args-$(BACKTRACE) += \
+  -device virtio-blk-$(vdev-suffix),drive=backtrace0 \
+  -drive id=backtrace0,if=none,format=raw,file=$(OUT_DBG)
+
 qemu_args-$(NET) += \
   -device virtio-net-$(vdev-suffix),netdev=net0
 

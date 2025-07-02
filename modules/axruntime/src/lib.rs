@@ -91,6 +91,37 @@ fn is_init_ok() -> bool {
     INITED_CPUS.load(Ordering::Acquire) == axconfig::SMP
 }
 
+#[cfg(feature = "dwarf")]
+struct BlockDeviceWrapper {
+    disk: axfs_ng::disk::SeekableDisk,
+}
+#[cfg(feature = "dwarf")]
+impl object::ReadCacheOps for BlockDeviceWrapper {
+    fn len(&mut self) -> Result<u64, ()> {
+        Ok(self.disk.size())
+    }
+
+    fn seek(&mut self, pos: u64) -> Result<u64, ()> {
+        self.disk.set_position(pos).map_err(|_| ())?;
+        Ok(pos)
+    }
+
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
+        self.disk.read(buf).map_err(|_| ())
+    }
+
+    fn read_exact(&mut self, mut buf: &mut [u8]) -> Result<(), ()> {
+        while !buf.is_empty() {
+            let read = self.disk.read(buf).map_err(|_| ())?;
+            if read == 0 {
+                return Err(());
+            }
+            buf = &mut buf[read..];
+        }
+        Ok(())
+    }
+}
+
 /// The main entry point of the ArceOS runtime.
 ///
 /// It is called from the bootstrapping code in [axhal]. `cpu_id` is the ID of
@@ -163,6 +194,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) -> ! {
         #[cfg(feature = "fs")]
         {
             axfs_ng::ROOT_FS_CONTEXT.call_once(|| {
+                #[allow(unused_imports)]
                 use axdriver::prelude::*;
 
                 let dev = all_devices
@@ -174,6 +206,15 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) -> ! {
                 let mount = axfs_ng_vfs::Mountpoint::new_root(&fs);
                 axfs_ng::FsContext::new(mount.root_location())
             });
+        }
+
+        #[cfg(feature = "dwarf")]
+        if let Some(dwarf_disk) = all_devices.block.take_one() {
+            if let Err(err) = axbacktrace::set_dwarf_sections(BlockDeviceWrapper {
+                disk: axfs_ng::disk::SeekableDisk::new(dwarf_disk),
+            }) {
+                warn!("Failed to set DWARF sections: {}", err);
+            }
         }
 
         #[cfg(feature = "net")]

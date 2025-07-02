@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-mod disk;
+pub mod disk;
 pub mod fs;
 mod highlevel;
 

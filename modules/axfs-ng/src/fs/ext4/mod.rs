@@ -6,6 +6,7 @@ pub use fs::*;
 pub use inode::*;
 
 use axdriver::AxBlockDevice;
+#[allow(unused_imports)]
 use axdriver::prelude::*;
 use lwext4_rust::{BlockDevice, EXT4_DEV_BSIZE, Ext4Error, Ext4Result, ffi::EIO};
 

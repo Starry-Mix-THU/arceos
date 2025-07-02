@@ -2,6 +2,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "addr2line")]
+mod dwarf;
+
 use core::{
     arch::asm,
     fmt,
@@ -14,6 +17,9 @@ use kspin::SpinNoIrq;
 
 #[doc(hidden)]
 pub use cfg_if::cfg_if;
+
+#[cfg(feature = "addr2line")]
+pub use dwarf::{DwarfError, set_dwarf_sections};
 
 /// Represents a single stack frame in the unwound stack.
 #[repr(C)]
@@ -195,6 +201,24 @@ impl Backtrace {
     }
 }
 
+#[cfg(feature = "addr2line")]
+fn fmt_location(f: &mut fmt::Formatter<'_>, location: &addr2line::Location) -> fmt::Result {
+    let Some(file) = &location.file else {
+        return write!(f, "??");
+    };
+    write!(f, "{file}")?;
+    let Some(line) = location.line else {
+        return Ok(());
+    };
+    write!(f, ":{line}")?;
+    let Some(col) = location.column else {
+        return Ok(());
+    };
+    write!(f, ":{col}")?;
+
+    Ok(())
+}
+
 impl fmt::Display for Backtrace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.inner {
@@ -206,6 +230,24 @@ impl fmt::Display for Backtrace {
             }
             Inner::Captured(capture) => {
                 writeln!(f, "Backtrace:")?;
+                #[cfg(feature = "addr2line")]
+                {
+                    let context = unsafe {
+                        #[allow(static_mut_refs)]
+                        dwarf::CONTEXT.clone()
+                    };
+                    if let Some(context) = context {
+                        for ip in capture {
+                            write!(f, "  0x{ip:x}")?;
+                            if let Ok(Some(location)) = context.find_location(*ip as u64) {
+                                write!(f, " - ")?;
+                                fmt_location(f, &location)?;
+                            }
+                            writeln!(f)?;
+                        }
+                        return Ok(());
+                    }
+                }
                 for ip in capture {
                     writeln!(f, "  0x{ip:x}")?;
                 }
