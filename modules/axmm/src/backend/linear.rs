@@ -19,7 +19,7 @@ impl Backend {
         pt: &mut PageTable,
         pa_va_offset: usize,
     ) -> bool {
-        let va_to_pa = |va: VirtAddr| PhysAddr::from(va.as_usize() - pa_va_offset);
+        let va_to_pa = |va: VirtAddr| PhysAddr::from(va.as_usize().wrapping_sub(pa_va_offset));
         debug!(
             "map_linear: [{:#x}, {:#x}) -> [{:#x}, {:#x}) {:?}",
             start,
