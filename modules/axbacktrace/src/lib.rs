@@ -89,6 +89,11 @@ pub unsafe fn unwind_stack(mut fp: usize, mut visitor: impl FnMut(&StackFrame) -
             break;
         }
 
+        if let Some(large_stack_end) = fp.checked_add(8 * 1024 * 1024) {
+            if frame.fp >= large_stack_end {
+                break;
+            }
+        }
         fp = frame.fp;
     }
 }
