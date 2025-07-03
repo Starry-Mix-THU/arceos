@@ -41,15 +41,7 @@ pub fn new_kernel_aspace() -> AxResult<AddrSpace> {
         axconfig::plat::KERNEL_ASPACE_SIZE,
     )?;
 
-    let mut ip_range = None;
-
     for r in axhal::mem::memory_regions() {
-        #[cfg(feature = "backtrace")]
-        if r.name == ".text" {
-            let start = phys_to_virt(r.paddr).as_usize();
-            ip_range = Some(start..(start + r.size));
-        }
-
         aspace.map_linear(
             phys_to_virt(r.paddr),
             r.paddr,
@@ -57,15 +49,6 @@ pub fn new_kernel_aspace() -> AxResult<AddrSpace> {
             r.flags.into(),
             PageSize::Size4K,
         )?;
-    }
-
-    #[cfg(feature = "backtrace")]
-    {
-        let kernel_start = aspace.base().as_usize();
-        let kernel_range = kernel_start..(kernel_start + aspace.size());
-        let fp_range = kernel_range.clone();
-        let ip_range = ip_range.unwrap_or(kernel_range);
-        axbacktrace::set_global_config(axbacktrace::BacktraceConfig { fp_range, ip_range });
     }
 
     Ok(aspace)

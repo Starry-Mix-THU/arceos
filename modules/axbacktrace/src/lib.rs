@@ -2,92 +2,70 @@
 
 extern crate alloc;
 
-#[cfg(feature = "addr2line")]
-mod dwarf;
-
-#[cfg(feature = "addr2line")]
 use core::{
-    arch::asm,
     fmt,
     ops::Range,
-    slice,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use alloc::{sync::Arc, vec::Vec};
-use kspin::SpinNoIrq;
+#[cfg(feature = "dwarf")]
+mod dwarf;
 
-#[doc(hidden)]
-pub use cfg_if::cfg_if;
-
-#[cfg(feature = "addr2line")]
-pub use dwarf::{DwarfError, DwarfReader, set_dwarf_sections};
+#[cfg(feature = "dwarf")]
+pub use dwarf::{DwarfError, DwarfReader, FrameIter, set_dwarf_sections};
 
 /// Represents a single stack frame in the unwound stack.
 #[repr(C)]
-#[derive(Debug)]
-pub struct StackFrame {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct Frame {
     /// The frame pointer of the previous stack frame.
     pub fp: usize,
-    /// The instruction pointer (program counter) at the time of the function
-    /// call.
+    /// The instruction pointer (program counter) after the function call.
     pub ip: usize,
 }
-impl StackFrame {
+
+impl Frame {
     // See https://github.com/rust-lang/backtrace-rs/blob/b65ab935fb2e0d59dba8966ffca09c9cc5a5f57c/src/symbolize/mod.rs#L145
     pub fn adjust_ip(&self) -> usize {
         self.ip.wrapping_sub(1)
     }
 }
 
-#[macro_export]
-macro_rules! read_frame_pointer {
-    () => {{
-        use core::arch::asm;
-
-        let mut fp: usize;
-        $crate::cfg_if! {
-            if #[cfg(target_arch = "x86_64")] {
-                unsafe { asm!("mov {ptr}, rbp", ptr = out(reg) fp) };
-            } else if #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))] {
-                unsafe { asm!("addi {ptr}, s0, 0", ptr = out(reg) fp) };
-            } else if #[cfg(target_arch = "aarch64")] {
-                unsafe { asm!("mov {ptr}, x29", ptr = out(reg) fp) };
-            } else if #[cfg(target_arch = "loongarch64")] {
-                unsafe { asm!("move {ptr}, $fp", ptr = out(reg) fp) };
-            } else {
-                return None;
-            }
-        }
-
-        Some(fp)
-    }};
-}
-
 /// Unwind the current thread's stack and call the provided visitor function for
 /// each stack frame. The visitor function receives a reference to a
 /// `StackFrame` and should return `true` to continue unwinding or `false` to
 /// stop unwinding.
-///
-/// # Safety
-///
-/// Calling this function with unbounded visitor functions can lead to reading
-/// invalid memory. It is the caller's responsibility to ensure that the visitor
-/// function returns `false` when it encounters an invalid stack frame pointer.
-pub unsafe fn unwind_stack(mut fp: usize, mut visitor: impl FnMut(&StackFrame) -> bool) {
+pub fn unwind_stack(mut fp: usize, mut visitor: impl FnMut(&Frame) -> bool) {
     let offset = if cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64") {
         0
     } else {
         1
     };
 
-    while fp > 0 {
-        if fp % align_of::<usize>() != 0 {
+    unsafe extern "C" {
+        safe static _stext: [u8; 0];
+        safe static _etext: [u8; 0];
+        safe static _edata: [u8; 0];
+    }
+
+    let ip_range = Range {
+        start: _stext.as_ptr() as usize,
+        end: _etext.as_ptr() as usize,
+    };
+
+    use axconfig::plat::{PHYS_MEMORY_BASE, PHYS_MEMORY_SIZE, PHYS_VIRT_OFFSET};
+    let fp_range = Range {
+        start: _edata.as_ptr() as usize,
+        end: PHYS_MEMORY_BASE + PHYS_MEMORY_SIZE + PHYS_VIRT_OFFSET,
+    };
+
+    while fp > 0 && fp % align_of::<usize>() == 0 && fp_range.contains(&fp) {
+        let frame: &Frame = unsafe { &*(fp as *const Frame).sub(offset) };
+
+        if !ip_range.contains(&frame.ip) {
             break;
         }
 
-        let stack: *const StackFrame = unsafe { (fp as *const StackFrame).sub(offset) };
-        let frame = unsafe { &*stack };
         if !visitor(frame) {
             break;
         }
@@ -99,24 +77,6 @@ pub unsafe fn unwind_stack(mut fp: usize, mut visitor: impl FnMut(&StackFrame) -
         }
         fp = frame.fp;
     }
-}
-
-/// Configuration for capturing a stack backtrace.
-#[derive(Debug, Clone)]
-pub struct BacktraceConfig {
-    /// The range of stack addresses to consider valid for unwinding.
-    pub fp_range: Range<usize>,
-    /// The range of instruction addresses to consider valid for unwinding.
-    pub ip_range: Range<usize>,
-}
-
-static GLOBAL_CONFIG: SpinNoIrq<Option<Arc<BacktraceConfig>>> = SpinNoIrq::new(None);
-
-/// Sets the global configuration for capturing stack backtraces.
-///
-/// See [`Backtrace::capture`].
-pub fn set_global_config(config: BacktraceConfig) {
-    *GLOBAL_CONFIG.lock() = Some(Arc::new(config));
 }
 
 static MAX_DEPTH: AtomicUsize = AtomicUsize::new(16);
@@ -134,7 +94,7 @@ pub fn max_depth() -> usize {
 
 /// Returns whether the backtrace feature is enabled.
 pub const fn is_enabled() -> bool {
-    cfg!(feature = "enable")
+    cfg!(feature = "dwarf")
 }
 
 #[allow(dead_code)]
@@ -142,7 +102,8 @@ pub const fn is_enabled() -> bool {
 enum Inner {
     Unsupported,
     Disabled,
-    Captured(Vec<usize>),
+    #[cfg(feature = "dwarf")]
+    Captured(alloc::vec::Vec<Frame>),
 }
 
 /// A captured OS thread stack backtrace.
@@ -161,165 +122,77 @@ impl Backtrace {
     /// It's the caller's responsibility to ensure that a proper configuration is set
     /// by calling [`set_global_config`].
     pub fn capture() -> Self {
-        if !is_enabled() {
+        #[cfg(not(feature = "dwarf"))]
+        {
             return Self {
                 inner: Inner::Disabled,
             };
         }
+        #[cfg(feature = "dwarf")]
+        {
+            use core::arch::asm;
 
-        let Some(config) = GLOBAL_CONFIG.lock().clone() else {
-            return Self {
-                inner: Inner::Disabled,
-            };
-        };
-        unsafe { Self::capture_with(&config) }
-    }
+            let mut fp: usize;
+            cfg_if::cfg_if! {
+                if #[cfg(target_arch = "x86_64")] {
+                    unsafe { asm!("mov {ptr}, rbp", ptr = out(reg) fp) };
+                } else if #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))] {
+                    unsafe { asm!("addi {ptr}, s0, 0", ptr = out(reg) fp) };
+                } else if #[cfg(target_arch = "aarch64")] {
+                    unsafe { asm!("mov {ptr}, x29", ptr = out(reg) fp) };
+                } else if #[cfg(target_arch = "loongarch64")] {
+                    unsafe { asm!("move {ptr}, $fp", ptr = out(reg) fp) };
+                } else {
+                    return Self {
+                        inner: Inner::Unsupported,
+                    };
+                }
+            }
 
-    /// Capture the current thread's stack backtrace with given configuration.
-    pub unsafe fn capture_with(config: &BacktraceConfig) -> Self {
-        if !is_enabled() {
-            return Self {
-                inner: Inner::Disabled,
-            };
-        }
-
-        let Some(fp) = read_frame_pointer!() else {
-            return Self {
-                inner: Inner::Unsupported,
-            };
-        };
-
-        let mut ips = Vec::new();
-        let mut depth = 0;
-        let max_depth = max_depth();
-        unsafe {
+            let mut frames = alloc::vec![];
+            let mut depth = 0;
+            let max_depth = max_depth();
             unwind_stack(fp, |frame| {
                 depth += 1;
-                if depth > max_depth
-                    || !config.fp_range.contains(&frame.fp)
-                    || !config.ip_range.contains(&frame.ip)
-                {
+                if depth > max_depth {
                     return false;
                 }
-                ips.push(frame.adjust_ip());
+                frames.push(*frame);
                 true
             });
-        }
-        Self {
-            inner: Inner::Captured(ips),
+
+            Self {
+                inner: Inner::Captured(frames),
+            }
         }
     }
 
     /// Visit each stack frame in the captured backtrace in order.
     ///
-    /// Returns `None` if DWARF is not available or the backtrace is not
-    /// captured.
-    #[cfg(feature = "addr2line")]
-    pub fn frames<'a>(&'a self) -> Option<Frames<'a>> {
+    /// Returns `None` if the backtrace is not captured.
+    #[cfg(feature = "dwarf")]
+    pub fn frames<'a>(&'a self) -> Option<FrameIter<'a>> {
         let Inner::Captured(capture) = &self.inner else {
             return None;
         };
 
-        let context = unsafe {
-            #[allow(static_mut_refs)]
-            dwarf::CONTEXT.clone()?
-        };
-
-        Some(Frames {
-            context,
-            inner: capture.iter(),
-        })
+        Some(FrameIter::new(capture))
     }
-}
-
-/// An "iterator" over the stack frames in a captured backtrace. Note that it
-/// does not implement `core::iter::Iterator` because the returned frames
-/// reference the iterator itself.
-///
-/// See [`Backtrace::frames`].
-pub struct Frames<'a> {
-    context: Arc<addr2line::Context<DwarfReader>>,
-    inner: slice::Iter<'a, usize>,
-}
-impl Frames<'_> {
-    /// Returns the next batch of stack frames from the captured backtrace.
-    ///
-    /// Each batch contains a set of frames that can be iterated over.
-    pub fn next_batch(
-        &mut self,
-    ) -> Option<Result<addr2line::FrameIter<DwarfReader>, gimli::Error>> {
-        let ip = self.inner.next()?;
-        Some(self.context.find_frames(*ip as _).skip_all_loads())
-    }
-}
-
-#[cfg(feature = "addr2line")]
-fn fmt_frame<R: gimli::Reader>(
-    f: &mut fmt::Formatter<'_>,
-    frame: &addr2line::Frame<R>,
-) -> fmt::Result {
-    use alloc::borrow::Cow;
-
-    let func = frame
-        .function
-        .as_ref()
-        .and_then(|func| func.demangle().ok())
-        .unwrap_or(Cow::Borrowed("<unknown>"));
-    writeln!(f, ": {func}")?;
-
-    let Some(location) = &frame.location else {
-        return Ok(());
-    };
-    write!(f, "            at ")?;
-
-    let Some(file) = &location.file else {
-        return write!(f, "??");
-    };
-    write!(f, "{file}")?;
-    let Some(line) = location.line else {
-        return Ok(());
-    };
-    write!(f, ":{line}")?;
-    let Some(col) = location.column else {
-        return Ok(());
-    };
-    write!(f, ":{col}")?;
-
-    writeln!(f)?;
-
-    Ok(())
 }
 
 impl fmt::Display for Backtrace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.inner {
             Inner::Unsupported => {
-                writeln!(f, "<backtrace unsupported>")
+                writeln!(f, "<unwinding unsupported>")
             }
             Inner::Disabled => {
-                writeln!(f, "<unwinding disabled>")
+                writeln!(f, "<backtrace disabled>")
             }
-            Inner::Captured(capture) => {
+            #[cfg(feature = "dwarf")]
+            Inner::Captured(frames) => {
                 writeln!(f, "Backtrace:")?;
-                #[cfg(feature = "addr2line")]
-                if let Some(mut frames) = self.frames() {
-                    let mut cnt = 0;
-                    while let Some(batch) = frames.next_batch() {
-                        let Ok(mut batch) = batch else {
-                            continue;
-                        };
-                        while let Ok(Some(frame)) = batch.next() {
-                            write!(f, "{cnt:>4}")?;
-                            fmt_frame(f, &frame)?;
-                            cnt += 1;
-                        }
-                    }
-                    return Ok(());
-                }
-                for ip in capture {
-                    writeln!(f, "  {ip:#x}")?;
-                }
-                Ok(())
+                dwarf::fmt_frames(f, frames)
             }
         }
     }

@@ -7,23 +7,27 @@ license.workspace = true
 homepage.workspace = true
 
 [features]
-default = ["addr2line"]
-enable = []
-addr2line = ["dep:addr2line", "dep:gimli", "dep:object", "dep:stable_deref_trait", "dep:thiserror"]
+default = []
+dwarf = [
+    "dep:addr2line",
+    "dep:gimli",
+    "dep:object",
+    "dep:stable_deref_trait",
+    "dep:thiserror",
+]
 
 [dependencies]
-cfg-if = "1.0.1"
-kspin = "0.1.0"
-
 addr2line = { version = "0.25.0", default-features = false, optional = true, features = [
     "rustc-demangle",
     "smallvec",
     "alloc",
 ] }
+cfg-if = "1"
 gimli = { version = "0.32.0", default-features = false, optional = true, features = [
     "read-core",
     "endian-reader",
 ] }
+kspin = "0.1.0"
 object = { version = "0.37.1", default-features = false, optional = true, features = [
     "elf",
     "alloc",
@@ -33,3 +37,5 @@ stable_deref_trait = { version = "1.2.0", default-features = false, optional = t
     "alloc",
 ] }
 thiserror = { version = "2.0.12", default-features = false, optional = true }
+
+axconfig.workspace = true

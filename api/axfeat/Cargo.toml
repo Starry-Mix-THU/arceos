@@ -68,13 +68,7 @@ log-level-debug = ["axlog/log-level-debug"]
 log-level-trace = ["axlog/log-level-trace"]
 
 # Backtrace
-backtrace = [
-    "axbacktrace/enable",
-    "axbacktrace/addr2line",
-    "axmm/backtrace",
-    "axruntime/dwarf",
-    "axdriver/dyn",
-]
+backtrace = ["axbacktrace/dwarf", "axruntime/dwarf", "axdriver/dyn"]
 
 [dependencies]
 axbacktrace = { workspace = true }

@@ -32,11 +32,11 @@ else ifeq ($(filter $(MAKECMDGOALS),defconfig oldconfig clippy),)
     $(if $(V), $(info CFLAGS: "$(CFLAGS)") $(info LDFLAGS: "$(LDFLAGS)"))
   else ifeq ($(APP_TYPE), rust)
     RUSTFLAGS += $(RUSTFLAGS_LINK_ARGS)
+    ifeq ($(BACKTRACE), y)
+      RUSTFLAGS += -C force-frame-pointers -C debuginfo=2 -C strip=none
+    endif
   endif
   $(if $(V), $(info RUSTFLAGS: "$(RUSTFLAGS)"))
-  ifeq ($(BACKTRACE), y)
-    RUSTFLAGS += -C force-frame-pointers
-  endif
   export RUSTFLAGS
 endif
 

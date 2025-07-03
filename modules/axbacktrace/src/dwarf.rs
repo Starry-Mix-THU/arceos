@@ -1,8 +1,12 @@
+use core::{fmt, slice};
+
 use addr2line::Context;
-use alloc::sync::Arc;
+use alloc::{borrow::Cow, sync::Arc};
 use gimli::DwarfSections;
 use object::{Endianness, Object, ObjectSection, ReadCache, ReadCacheOps};
 use thiserror::Error;
+
+pub type DwarfReader = gimli::EndianArcSlice<gimli::RunTimeEndian>;
 
 pub(crate) static mut CONTEXT: Option<Arc<Context<DwarfReader>>> = None;
 
@@ -21,19 +25,14 @@ pub fn set_dwarf_sections(reader: impl ReadCacheOps) -> Result<(), DwarfError> {
     let object = object::File::parse(&cache)?;
     assert_eq!(object.endianness(), Endianness::default());
 
-    let dwarf_sections = DwarfSections::load(|section| {
-        object::Result::Ok(match object.section_by_name(section.name()) {
-            Some(section) => Section {
-                data: section.uncompressed_data()?.into(),
-                relocations: section
-                    .relocation_map()
-                    .map(|it| RelocationMap(Arc::new(it)))?,
-            },
+    let dwarf_sections = DwarfSections::load(|id| {
+        object::Result::Ok(match object.section_by_name(id.name()) {
+            Some(section) => section.data()?,
             None => Default::default(),
         })
     })?;
-    let dwarf =
-        dwarf_sections.borrow(|section| borrow_section(section, gimli::RunTimeEndian::default()));
+    let dwarf = dwarf_sections
+        .borrow(|section| DwarfReader::new((*section).into(), gimli::RunTimeEndian::default()));
     let context = Context::from_dwarf(dwarf).map_err(DwarfError::Gimli)?;
 
     unsafe {
@@ -43,30 +42,90 @@ pub fn set_dwarf_sections(reader: impl ReadCacheOps) -> Result<(), DwarfError> {
     Ok(())
 }
 
-#[derive(Clone, Debug, Default)]
-#[doc(hidden)]
-pub struct RelocationMap(Arc<object::read::RelocationMap>);
+fn fmt_frame<R: gimli::Reader>(
+    f: &mut fmt::Formatter<'_>,
+    frame: &addr2line::Frame<R>,
+) -> fmt::Result {
+    let func = frame
+        .function
+        .as_ref()
+        .and_then(|func| func.demangle().ok())
+        .unwrap_or(Cow::Borrowed("<unknown>"));
+    writeln!(f, ": {func}")?;
 
-impl gimli::read::Relocate for RelocationMap {
-    fn relocate_address(&self, offset: usize, value: u64) -> gimli::Result<u64> {
-        Ok(self.0.relocate(offset as u64, value))
-    }
+    let Some(location) = &frame.location else {
+        return Ok(());
+    };
+    write!(f, "            at ")?;
 
-    fn relocate_offset(&self, offset: usize, value: usize) -> gimli::Result<usize> {
-        <usize as gimli::ReaderOffset>::from_u64(self.0.relocate(offset as u64, value as u64))
+    let Some(file) = &location.file else {
+        return write!(f, "??");
+    };
+    write!(f, "{file}")?;
+    let Some(line) = location.line else {
+        return Ok(());
+    };
+    write!(f, ":{line}")?;
+    let Some(col) = location.column else {
+        return Ok(());
+    };
+    write!(f, ":{col}")?;
+
+    Ok(())
+}
+
+/// An iterator over the stack frames in a captured backtrace.
+///
+/// See [`Backtrace::frames`].
+///
+/// [`Backtrace::frames`]: crate::Backtrace::frames
+pub struct FrameIter<'a> {
+    raw: slice::Iter<'a, crate::Frame>,
+    inner: Option<addr2line::FrameIter<'static, DwarfReader>>,
+}
+
+impl<'a> FrameIter<'a> {
+    pub(crate) fn new(frames: &'a [crate::Frame]) -> Self {
+        let raw = frames.iter();
+        Self { raw, inner: None }
     }
 }
 
-#[derive(Default)]
-pub(crate) struct Section {
-    data: Arc<[u8]>,
-    relocations: RelocationMap,
+impl Iterator for FrameIter<'_> {
+    type Item = addr2line::Frame<'static, DwarfReader>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(inner) = &mut self.inner {
+            if let Ok(Some(frame)) = inner.next() {
+                return Some(frame);
+            }
+            self.inner = None;
+        }
+
+        #[allow(static_mut_refs)]
+        let ctx = unsafe { CONTEXT.as_ref()? };
+
+        let mut frame = self.raw.next()?;
+        loop {
+            if let Ok(inner) = ctx.find_frames(frame.adjust_ip() as _).skip_all_loads() {
+                self.inner = Some(inner);
+                break;
+            } else {
+                frame = self.raw.next()?;
+                continue;
+            }
+        }
+
+        self.next()
+    }
 }
 
-pub type DwarfReader =
-    gimli::RelocateReader<gimli::EndianArcSlice<gimli::RunTimeEndian>, RelocationMap>;
+pub(crate) fn fmt_frames(f: &mut fmt::Formatter<'_>, frames: &[crate::Frame]) -> fmt::Result {
+    for (i, frame) in FrameIter::new(frames).enumerate() {
+        write!(f, "{i:>4}")?;
+        fmt_frame(f, &frame)?;
+        writeln!(f)?;
+    }
 
-fn borrow_section(section: &Section, endian: gimli::RunTimeEndian) -> DwarfReader {
-    let slice = gimli::EndianArcSlice::new(section.data.clone(), endian);
-    gimli::RelocateReader::new(slice, section.relocations.clone())
+    Ok(())
 }

@@ -37,6 +37,7 @@ PLATFORM ?=
 SMP ?= 1
 MODE ?= release
 LOG ?= warn
+BACKTRACE ?= n
 V ?=
 TARGET_DIR ?= $(PWD)/target
 EXTRA_CONFIG ?=
