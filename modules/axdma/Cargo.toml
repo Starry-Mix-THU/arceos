@@ -14,7 +14,7 @@ documentation = "https://arceos-org.github.io/arceos/axdma/index.html"
 log = "=0.4.21"
 kspin = "0.1"
 memory_addr = "0.4"
-axerrno = "0.1"
+axerrno = { workspace = true }
 allocator = { workspace = true }
 axalloc = { workspace = true }
 axmm = { workspace = true }

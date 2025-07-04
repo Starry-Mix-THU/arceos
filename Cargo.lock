@@ -158,11 +158,11 @@ dependencies = [
  "axdisplay",
  "axdma",
  "axdriver",
- "axerrno",
+ "axerrno 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "axfeat",
  "axfs-ng",
  "axhal",
- "axio",
+ "axio 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "axlog",
  "axmm",
  "axnet",
@@ -219,7 +219,7 @@ version = "0.1.0"
 dependencies = [
  "allocator",
  "axbacktrace",
- "axerrno",
+ "axerrno 0.1.0 (git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86)",
  "cfg-if",
  "kspin",
  "log",
@@ -232,6 +232,7 @@ name = "axbacktrace"
 version = "0.1.0"
 dependencies = [
  "addr2line",
+ "axconfig",
  "cfg-if",
  "gimli",
  "kspin",
@@ -287,7 +288,7 @@ dependencies = [
  "allocator",
  "axalloc",
  "axconfig",
- "axerrno",
+ "axerrno 0.1.0 (git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86)",
  "axhal",
  "axmm",
  "kspin",
@@ -379,6 +380,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "axerrno"
+version = "0.1.0"
+source = "git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86#f5d8f863ea70b85758ffe81be233629dcfe86ec6"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "axfeat"
 version = "0.1.0"
 dependencies = [
@@ -403,9 +412,9 @@ version = "0.1.0"
 dependencies = [
  "axdriver",
  "axdriver_block",
- "axerrno",
+ "axerrno 0.1.0 (git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86)",
  "axfs-ng-vfs",
- "axio",
+ "axio 0.1.1 (git+https://github.com/Starry-Mix-THU/axio.git?rev=e662ff6)",
  "axsync",
  "bitflags 2.9.1",
  "cfg-if",
@@ -425,7 +434,7 @@ name = "axfs-ng-vfs"
 version = "0.1.0"
 source = "git+https://github.com/Starry-Mix-THU/axfs-ng-vfs?rev=0247038#0247038deef8e6c8a466a67689bcad66ca7a28e0"
 dependencies = [
- "axerrno",
+ "axerrno 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 2.9.1",
  "inherit-methods-macro",
  "lock_api",
@@ -449,7 +458,7 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2314ebe07a2fef7b1c1a7d15ab817941cd306ace651bb50024b5a8b3e8485359"
 dependencies = [
- "axerrno",
+ "axerrno 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 2.9.1",
  "log",
 ]
@@ -500,7 +509,15 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30aa258a37c25c5e9d3ff45ec80e728ff7c499586e3e40719daf7908f10fd5bd"
 dependencies = [
- "axerrno",
+ "axerrno 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "axio"
+version = "0.1.1"
+source = "git+https://github.com/Starry-Mix-THU/axio.git?rev=e662ff6#e662ff684804519fc95df45d95bd77abc3decb88"
+dependencies = [
+ "axerrno 0.1.0 (git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86)",
 ]
 
 [[package]]
@@ -522,7 +539,7 @@ dependencies = [
  "axalloc",
  "axbacktrace",
  "axconfig",
- "axerrno",
+ "axerrno 0.1.0 (git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86)",
  "axhal",
  "kspin",
  "lazy_static",
@@ -539,9 +556,9 @@ version = "0.1.0"
 dependencies = [
  "axdriver",
  "axdriver_net",
- "axerrno",
+ "axerrno 0.1.0 (git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86)",
  "axhal",
- "axio",
+ "axio 0.1.1 (git+https://github.com/Starry-Mix-THU/axio.git?rev=e662ff6)",
  "axsync",
  "axtask",
  "cfg-if",
@@ -580,9 +597,9 @@ name = "axstd"
 version = "0.1.0"
 dependencies = [
  "arceos_api",
- "axerrno",
+ "axerrno 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "axfeat",
- "axio",
+ "axio 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "kspin",
 ]
 

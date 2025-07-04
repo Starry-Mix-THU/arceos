@@ -31,57 +31,57 @@ impl Socket {
 
     fn send(&self, buf: &[u8]) -> LinuxResult<usize> {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().send(buf)?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().send(buf)?),
+            Socket::Udp(udpsocket) => udpsocket.lock().send(buf),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().send(buf),
         }
     }
 
     fn recv(&self, buf: &mut [u8]) -> LinuxResult<usize> {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().recv_from(buf).map(|e| e.0)?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().recv(buf)?),
+            Socket::Udp(udpsocket) => udpsocket.lock().recv(buf),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().recv(buf),
         }
     }
 
     pub fn poll(&self) -> LinuxResult<PollState> {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().poll()?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().poll()?),
+            Socket::Udp(udpsocket) => udpsocket.lock().poll(),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().poll(),
         }
     }
 
     fn local_addr(&self) -> LinuxResult<SocketAddr> {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().local_addr()?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().local_addr()?),
+            Socket::Udp(udpsocket) => udpsocket.lock().local_addr(),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().local_addr(),
         }
     }
 
     fn peer_addr(&self) -> LinuxResult<SocketAddr> {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().peer_addr()?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().peer_addr()?),
+            Socket::Udp(udpsocket) => udpsocket.lock().peer_addr(),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().peer_addr(),
         }
     }
 
     fn bind(&self, addr: SocketAddr) -> LinuxResult {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().bind(addr)?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().bind(addr)?),
+            Socket::Udp(udpsocket) => udpsocket.lock().bind(addr),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().bind(addr),
         }
     }
 
     fn connect(&self, addr: SocketAddr) -> LinuxResult {
         match self {
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().connect(addr)?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().connect(addr)?),
+            Socket::Udp(udpsocket) => udpsocket.lock().connect(addr),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().connect(addr),
         }
     }
 
     fn sendto(&self, buf: &[u8], addr: SocketAddr) -> LinuxResult<usize> {
         match self {
             // diff: must bind before sendto
-            Socket::Udp(udpsocket) => Ok(udpsocket.lock().send_to(buf, addr)?),
+            Socket::Udp(udpsocket) =>udpsocket.lock().send_to(buf, addr),
             Socket::Tcp(_) => Err(LinuxError::EISCONN),
         }
     }
@@ -89,25 +89,25 @@ impl Socket {
     fn recvfrom(&self, buf: &mut [u8]) -> LinuxResult<(usize, Option<SocketAddr>)> {
         match self {
             // diff: must bind before recvfrom
-            Socket::Udp(udpsocket) => Ok(udpsocket
+            Socket::Udp(udpsocket) => udpsocket
                 .lock()
                 .recv_from(buf)
-                .map(|res| (res.0, Some(res.1)))?),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().recv(buf).map(|res| (res, None))?),
+                .map(|res| (res.0, Some(res.1))),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().recv(buf).map(|res| (res, None)),
         }
     }
 
     fn listen(&self) -> LinuxResult {
         match self {
             Socket::Udp(_) => Err(LinuxError::EOPNOTSUPP),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().listen()?),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().listen(),
         }
     }
 
     fn accept(&self) -> LinuxResult<TcpSocket> {
         match self {
             Socket::Udp(_) => Err(LinuxError::EOPNOTSUPP),
-            Socket::Tcp(tcpsocket) => Ok(tcpsocket.lock().accept()?),
+            Socket::Tcp(tcpsocket) => tcpsocket.lock().accept(),
         }
     }
 

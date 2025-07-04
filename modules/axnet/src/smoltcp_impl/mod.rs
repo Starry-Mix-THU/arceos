@@ -6,7 +6,7 @@ mod tcp;
 mod udp;
 
 use alloc::vec;
-use axerrno::{AxError, AxResult};
+use axerrno::{LinuxError, LinuxResult};
 use core::cell::RefCell;
 use core::ops::DerefMut;
 
@@ -127,19 +127,19 @@ impl<'a> SocketSetWrapper<'a> {
         f(socket)
     }
 
-    pub fn bind_check(&self, addr: IpAddress, _port: u16) -> AxResult {
+    pub fn bind_check(&self, addr: IpAddress, _port: u16) -> LinuxResult {
         let mut sockets = self.0.lock();
         for item in sockets.iter_mut() {
             match item.1 {
                 Socket::Tcp(s) => {
                     let local_addr = s.get_bound_endpoint();
                     if local_addr.addr == Some(addr) {
-                        return Err(AxError::AddrInUse);
+                        return Err(LinuxError::EADDRINUSE);
                     }
                 }
                 Socket::Udp(s) => {
                     if s.endpoint().addr == Some(addr) {
-                        return Err(AxError::AddrInUse);
+                        return Err(LinuxError::EADDRINUSE);
                     }
                 }
                 _ => continue,

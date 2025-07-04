@@ -69,6 +69,8 @@ axdma = { path = "modules/axdma" }
 
 allocator = { git = "https://github.com/Starry-Mix-THU/allocator.git", rev = "d5feebd" }
 axfs-ng-vfs = { git = "https://github.com/Starry-Mix-THU/axfs-ng-vfs", rev = "0247038" }
+axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git", rev = "f5d8f86" }
+axio = { git = "https://github.com/Starry-Mix-THU/axio.git", rev = "e662ff6" }
 page_table_entry = "0.5"
 page_table_multiarch = "0.5"
 

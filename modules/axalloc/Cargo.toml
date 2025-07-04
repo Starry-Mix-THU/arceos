@@ -23,7 +23,7 @@ tracking = ["dep:percpu", "dep:axbacktrace"]
 [dependencies]
 allocator = { workspace = true, features = ["bitmap"] }
 axbacktrace = { workspace = true, optional = true }
-axerrno = "0.1"
+axerrno = { workspace = true }
 cfg-if = "1.0"
 kspin = "0.1"
 log = "=0.4.21"
