@@ -141,30 +141,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arceos-httpclient"
-version = "0.1.0"
-dependencies = [
- "axstd",
-]
-
-[[package]]
-name = "arceos-httpserver"
-version = "0.1.0"
-dependencies = [
- "axstd",
-]
-
-[[package]]
-name = "arceos-shell"
-version = "0.1.0"
-dependencies = [
- "axfs_ramfs",
- "axfs_vfs",
- "axstd",
- "crate_interface",
-]
-
-[[package]]
 name = "arceos_api"
 version = "0.1.0"
 dependencies = [
@@ -184,31 +160,6 @@ dependencies = [
  "axruntime",
  "axsync",
  "axtask",
-]
-
-[[package]]
-name = "arceos_posix_api"
-version = "0.1.0"
-dependencies = [
- "axalloc",
- "axconfig",
- "axerrno",
- "axfeat",
- "axfs-ng",
- "axfs-ng-vfs",
- "axhal",
- "axio",
- "axlog",
- "axnet",
- "axruntime",
- "axsync",
- "axtask",
- "bindgen",
- "flatten_objects",
- "lazy_static",
- "scope-local",
- "spin",
- "static_assertions",
 ]
 
 [[package]]
@@ -433,8 +384,7 @@ dependencies = [
 [[package]]
 name = "axerrno"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66ccd41dd4ef364e2385901a5c2a3adea974a41eccb2529c1f24e4c8bc93d834"
+source = "git+https://github.com/Starry-Mix-THU/axerrno.git?rev=f5d8f86#f5d8f863ea70b85758ffe81be233629dcfe86ec6"
 dependencies = [
  "log",
 ]
@@ -483,34 +433,12 @@ dependencies = [
 [[package]]
 name = "axfs-ng-vfs"
 version = "0.1.0"
-source = "git+https://github.com/Starry-Mix-THU/axfs-ng-vfs?rev=0247038#0247038deef8e6c8a466a67689bcad66ca7a28e0"
+source = "git+https://github.com/Starry-Mix-THU/axfs-ng-vfs.git?rev=092d1dd#092d1dd341943977f5729e9e37a57b418af87ae8"
 dependencies = [
  "axerrno",
  "bitflags 2.9.1",
  "inherit-methods-macro",
  "lock_api",
- "log",
-]
-
-[[package]]
-name = "axfs_ramfs"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f50c26614485d837a3fc09a92f24a226caddc25a30df7e6aaf4bd19b304c399"
-dependencies = [
- "axfs_vfs",
- "log",
- "spin",
-]
-
-[[package]]
-name = "axfs_vfs"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcba2006898d7879d456a9c34b9c9460cb536f5bf69d1d5d7d0e0f19f073368d"
-dependencies = [
- "axerrno",
- "bitflags 2.9.1",
  "log",
 ]
 
@@ -542,21 +470,9 @@ dependencies = [
 [[package]]
 name = "axio"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30aa258a37c25c5e9d3ff45ec80e728ff7c499586e3e40719daf7908f10fd5bd"
+source = "git+https://github.com/Starry-Mix-THU/axio.git?rev=e662ff6#e662ff684804519fc95df45d95bd77abc3decb88"
 dependencies = [
  "axerrno",
-]
-
-[[package]]
-name = "axlibc"
-version = "0.1.0"
-dependencies = [
- "arceos_posix_api",
- "axerrno",
- "axfeat",
- "axio",
- "bindgen",
 ]
 
 [[package]]
@@ -1220,15 +1136,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flatten_objects"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f7719d63de27ac93e7cd2c8e0c03083f8b0ff7f842fdb6280b8cdcac21b4baf"
-dependencies = [
- "bitmaps",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1482,15 +1389,6 @@ checksum = "51954c939251c5899b6e953aa0ed8903c5c0d1140fc7ce3a8fd60c931d694f6e"
 dependencies = [
  "cfg-if",
  "kernel_guard",
-]
-
-[[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
-dependencies = [
- "spin",
 ]
 
 [[package]]

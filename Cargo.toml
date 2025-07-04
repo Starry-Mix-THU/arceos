@@ -18,18 +18,18 @@ members = [
     "modules/axtask",
 
     "api/axfeat",
-    "api/arceos_api",
-    "api/arceos_posix_api",
+    # "api/arceos_api",
+    # "api/arceos_posix_api",
 
-    "ulib/axstd",
-    "ulib/axlibc",
+    # "ulib/axstd",
+    # "ulib/axlibc",
 
     "examples/helloworld",
     "examples/helloworld-myplat",
-    "examples/httpclient",
-    "examples/httpserver",
-    "examples/httpserver",
-    "examples/shell",
+    # "examples/httpclient",
+    # "examples/httpserver",
+    # "examples/httpserver",
+    # "examples/shell",
 ]
 
 [workspace.package]
@@ -68,9 +68,9 @@ axdma = { path = "modules/axdma" }
 
 allocator = { git = "https://github.com/Starry-Mix-THU/allocator.git", rev = "d5feebd" }
 axcpu = "0.2"
-axerrno = "0.1"
-axfs-ng-vfs = { git = "https://github.com/Starry-Mix-THU/axfs-ng-vfs", rev = "0247038" }
-axio = "0.1.1"
+axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git", rev = "f5d8f86" }
+axfs-ng-vfs = { git = "https://github.com/Starry-Mix-THU/axfs-ng-vfs.git", rev = "092d1dd" }
+axio = { git = "https://github.com/Starry-Mix-THU/axio.git", rev = "e662ff6" }
 axplat = "0.1"
 bindgen = "0.72"
 cfg-if = "1.0"
