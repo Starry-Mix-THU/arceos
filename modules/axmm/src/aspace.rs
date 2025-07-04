@@ -1,9 +1,7 @@
 use core::fmt;
 
 use alloc::sync::Arc;
-#[cfg(feature = "copy-from")]
-use axerrno::LinuxResult;
-use axerrno::{LinuxError, bail};
+use axerrno::{LinuxError, LinuxResult, bail};
 use axhal::mem::phys_to_virt;
 use axhal::paging::{MappingFlags, PageSize, PageTable, PagingError};
 use memory_addr::{MemoryAddr, PhysAddr, VirtAddr, VirtAddrRange, is_aligned};
