@@ -23,7 +23,6 @@ fs = ["axdriver", "axfs-ng", "axfs-ng-vfs"]
 net = ["axdriver", "axnet"]
 display = ["axdriver", "axdisplay"]
 rtc = []
-dwarf = ["dep:object"]
 
 [dependencies]
 axhal = { workspace = true }
@@ -43,6 +42,5 @@ axsync = { workspace = true }
 crate_interface = "0.1"
 percpu = { version = "0.2", optional = true }
 kernel_guard = { version = "0.1", optional = true }
-object = { version = "0.37.1", default-features = false, optional = true }
 
 chrono = { version = "0.4.38", default-features = false }

@@ -2,44 +2,83 @@ use core::{fmt, slice};
 
 use addr2line::Context;
 use alloc::{borrow::Cow, sync::Arc};
-use gimli::DwarfSections;
-use object::{Endianness, Object, ObjectSection, ReadCache, ReadCacheOps};
-use thiserror::Error;
+use paste::paste;
 
-pub type DwarfReader = gimli::EndianArcSlice<gimli::RunTimeEndian>;
+pub type DwarfReader = gimli::EndianSlice<'static, gimli::RunTimeEndian>;
 
-pub(crate) static mut CONTEXT: Option<Arc<Context<DwarfReader>>> = None;
+static mut CONTEXT: Option<Arc<Context<DwarfReader>>> = None;
 
-#[derive(Debug, Error)]
-pub enum DwarfError {
-    #[error("gimli error: {0}")]
-    Gimli(gimli::Error),
+macro_rules! generate_sections {
+    ($($name:ident),*) => {
+        unsafe extern "C" {
+            safe static _debug_start: [u8; 0];
+            paste! {
+                $(
+                    safe static [<_ $name _end>]: [u8; 0];
+                )*
+            }
+        }
 
-    #[error("object error: {0}")]
-    Object(#[from] object::Error),
+        let current = _debug_start.as_ptr();
+        paste! {
+            $(
+                let $name = DwarfReader::new(
+                    unsafe {
+                        core::slice::from_raw_parts(
+                            current,
+                            [<_ $name _end>]
+                                .as_ptr()
+                                .offset_from_unsigned(current),
+                        )
+                    },
+                    gimli::RunTimeEndian::default(),
+                );
+                #[allow(unused_variables)]
+                let current = [<_ $name _end>].as_ptr();
+            )*
+        }
+    };
 }
 
-/// Set the DWARF sections for addr2line to use.
-pub fn set_dwarf_sections(reader: impl ReadCacheOps) -> Result<(), DwarfError> {
-    let cache = ReadCache::new(reader);
-    let object = object::File::parse(&cache)?;
-    assert_eq!(object.endianness(), Endianness::default());
+pub fn init() {
+    generate_sections!(
+        debug_abbrev,
+        debug_addr,
+        debug_aranges,
+        debug_info,
+        debug_line,
+        debug_line_str,
+        debug_ranges,
+        debug_rnglists,
+        debug_str,
+        debug_str_offsets
+    );
 
-    let dwarf_sections = DwarfSections::load(|id| {
-        object::Result::Ok(match object.section_by_name(id.name()) {
-            Some(section) => section.data()?,
-            None => Default::default(),
-        })
-    })?;
-    let dwarf = dwarf_sections
-        .borrow(|section| DwarfReader::new((*section).into(), gimli::RunTimeEndian::default()));
-    let context = Context::from_dwarf(dwarf).map_err(DwarfError::Gimli)?;
+    let default_section = DwarfReader::new(&[], gimli::RunTimeEndian::default());
 
-    unsafe {
-        CONTEXT = Some(Arc::new(context));
+    match Context::from_sections(
+        debug_abbrev.into(),
+        debug_addr.into(),
+        debug_aranges.into(),
+        debug_info.into(),
+        debug_line.into(),
+        debug_line_str.into(),
+        debug_ranges.into(),
+        debug_rnglists.into(),
+        debug_str.into(),
+        debug_str_offsets.into(),
+        default_section,
+    ) {
+        Ok(ctx) => {
+            unsafe {
+                CONTEXT = Some(Arc::new(ctx));
+            }
+            axlog::info!("Initialized addr2line context successfully.");
+        }
+        Err(e) => {
+            axlog::error!("Failed to initialize addr2line context: {e}");
+        }
     }
-
-    Ok(())
 }
 
 fn fmt_frame<R: gimli::Reader>(
@@ -121,6 +160,10 @@ impl Iterator for FrameIter<'_> {
 }
 
 pub(crate) fn fmt_frames(f: &mut fmt::Formatter<'_>, frames: &[crate::Frame]) -> fmt::Result {
+    #[allow(static_mut_refs)]
+    if unsafe { CONTEXT.is_none() } {
+        return write!(f, "Backtracing is not initialized.");
+    }
     for (i, frame) in FrameIter::new(frames).enumerate() {
         write!(f, "{i:>4}")?;
         fmt_frame(f, &frame)?;

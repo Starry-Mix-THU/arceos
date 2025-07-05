@@ -145,7 +145,6 @@ APP_NAME := $(shell basename $(APP))
 LD_SCRIPT := $(TARGET_DIR)/$(TARGET)/$(MODE)/linker_$(PLAT_NAME).lds
 OUT_ELF := $(OUT_DIR)/$(APP_NAME)_$(PLAT_NAME).elf
 OUT_BIN := $(patsubst %.elf,%.bin,$(OUT_ELF))
-OUT_DBG := $(patsubst %.elf,%.dbg,$(OUT_ELF))
 OUT_UIMG := $(patsubst %.elf,%.uimg,$(OUT_ELF))
 ifeq ($(UIMAGE), y)
   FINAL_IMG := $(OUT_UIMG)
@@ -171,7 +170,7 @@ defconfig: _axconfig-gen
 oldconfig: _axconfig-gen
 	$(call oldconfig)
 
-build: $(OUT_DIR) $(FINAL_IMG) $(OUT_DBG)
+build: $(OUT_DIR) $(FINAL_IMG)
 
 disasm:
 	$(OBJDUMP) $(OUT_ELF) | less

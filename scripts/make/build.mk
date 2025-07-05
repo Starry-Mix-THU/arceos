@@ -48,15 +48,23 @@ ifeq ($(APP_TYPE), rust)
 else ifeq ($(APP_TYPE), c)
 	$(call cargo_build,ulib/axlibc,$(AX_FEAT) $(LIB_FEAT))
 endif
+ifeq ($(BACKTRACE), y)
+	$(call run_cmd,parallel,"$(OBJCOPY) $(OUT_ELF) --dump-section .{}={}.bin || touch {}.bin" ::: \
+		debug_abbrev debug_addr debug_aranges debug_info debug_line \
+		debug_line_str debug_ranges debug_rnglists debug_str debug_str_offsets)
+	$(call run_cmd,cat,debug_abbrev.bin debug_addr.bin debug_aranges.bin debug_info.bin debug_line.bin \
+		debug_line_str.bin debug_ranges.bin debug_rnglists.bin debug_str.bin debug_str_offsets.bin > debug.bin)
+	@rm -f debug_*.bin
+	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --update-section .debug=debug.bin)
+	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --strip-all)
+	@rm -f debug.bin
+endif
 
 $(OUT_DIR):
 	$(call run_cmd,mkdir,-p $@)
 
 $(OUT_BIN): _cargo_build $(OUT_ELF)
-	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --strip-all -O binary $@)
-
-$(OUT_DBG): _cargo_build $(OUT_ELF)
-	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) --only-keep-debug $@)
+	$(call run_cmd,$(OBJCOPY),$(OUT_ELF) -O binary $@)
 
 ifeq ($(ARCH), aarch64)
   uimg_arch := arm64

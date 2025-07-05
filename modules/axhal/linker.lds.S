@@ -29,6 +29,30 @@ SECTIONS
         __init_array_end = .;
     }
 
+    .debug : {
+        _debug_start = .;
+        . += SIZEOF(.debug_abbrev);
+        _debug_abbrev_end = .;
+        . += SIZEOF(.debug_addr);
+        _debug_addr_end = .;
+        . += SIZEOF(.debug_aranges);
+        _debug_aranges_end = .;
+        . += SIZEOF(.debug_info);
+        _debug_info_end = .;
+        . += SIZEOF(.debug_line);
+        _debug_line_end = .;
+        . += SIZEOF(.debug_line_str);
+        _debug_line_str_end = .;
+        . += SIZEOF(.debug_ranges);
+        _debug_ranges_end = .;
+        . += SIZEOF(.debug_rnglists);
+        _debug_rnglists_end = .;
+        . += SIZEOF(.debug_str);
+        _debug_str_end = .;
+        . += SIZEOF(.debug_str_offsets);
+        _debug_str_offsets_end = .;
+    }
+
     . = ALIGN(4K);
     _erodata = .;
 
@@ -84,7 +108,7 @@ SECTIONS
 
     _ekernel = .;
 
-	/DISCARD/ : {
+    /DISCARD/ : {
         *(.comment) *(.gnu*) *(.note*) *(.eh_frame*)
     }
 }

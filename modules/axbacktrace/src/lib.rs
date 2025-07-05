@@ -12,7 +12,10 @@ use core::{
 mod dwarf;
 
 #[cfg(feature = "dwarf")]
-pub use dwarf::{DwarfError, DwarfReader, FrameIter, set_dwarf_sections};
+pub use dwarf::{DwarfReader, FrameIter, init};
+
+#[cfg(not(feature = "dwarf"))]
+pub fn init() {}
 
 /// Represents a single stack frame in the unwound stack.
 #[repr(C)]
