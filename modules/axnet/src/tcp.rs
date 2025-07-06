@@ -301,7 +301,7 @@ impl SocketOps for TcpSocket {
             let bound_endpoint = self.bound_endpoint()?;
             let handle = unsafe { self.handle.get().read() }
                 .unwrap_or_else(|| SOCKET_SET.add(new_tcp_socket()));
-            warn!("TCP socket {}: binding to {}", handle, local_addr);
+            debug!("TCP socket {}: binding to {}", handle, local_addr);
             with_smol_socket(handle, |socket| {
                 socket.set_bound_endpoint(bound_endpoint);
             });
@@ -389,7 +389,7 @@ impl SocketOps for TcpSocket {
                 (*self.local_addr.get()).port = bound_endpoint.port;
             }
             LISTEN_TABLE.listen(bound_endpoint)?;
-            warn!("listening on {}", bound_endpoint);
+            debug!("listening on {}", bound_endpoint);
             Ok(())
         })
         .unwrap_or(Ok(())) // ignore simultaneous `listen`s.
@@ -512,7 +512,7 @@ impl SocketOps for TcpSocket {
             // no other threads can read or write it.
             let handle = unsafe { self.handle.get().read().unwrap() };
             with_smol_socket(handle, |socket| {
-                warn!("TCP socket {}: shutting down", handle);
+                debug!("TCP socket {}: shutting down", handle);
                 socket.close();
             });
             unsafe { self.local_addr.get().write(UNSPECIFIED_ENDPOINT_V4) }; // clear bound address
