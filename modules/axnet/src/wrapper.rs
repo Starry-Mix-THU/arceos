@@ -1,106 +1,37 @@
-mod addr;
-mod bench;
-mod dns;
-mod listen_table;
-mod tcp;
-mod udp;
+use core::{cell::RefCell, ops::DerefMut};
 
 use alloc::vec;
+use axdriver::AxNetDevice;
+use axdriver_net::{DevError, NetBufPtr, NetDriverOps};
 use axerrno::{LinuxError, LinuxResult};
-use core::cell::RefCell;
-use core::ops::DerefMut;
-
-use axdriver::prelude::*;
-use axdriver_net::{DevError, NetBufPtr};
-use axhal::time::{NANOS_PER_MICROS, wall_time_nanos};
+use axhal::time::{NANOS_PER_MICROS, monotonic_time_nanos};
 use axsync::Mutex;
-use lazyinit::LazyInit;
-use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet};
-use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
-use smoltcp::socket::{self, AnySocket, Socket};
-use smoltcp::time::Instant;
-use smoltcp::wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr};
+use smoltcp::{
+    iface::{Interface, SocketHandle, SocketSet},
+    phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken},
+    socket::{AnySocket, Socket},
+    time::Instant,
+    wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr},
+};
 
-use self::listen_table::ListenTable;
+use crate::{LISTEN_TABLE, LOOPBACK, LOOPBACK_DEV, SOCKET_SET, consts::RANDOM_SEED};
 
-pub use self::dns::dns_query;
-pub use self::tcp::TcpSocket;
-pub use self::udp::UdpSocket;
-pub use addr::{from_core_sockaddr, into_core_sockaddr};
-
-macro_rules! env_or_default {
-    ($key:literal) => {
-        match option_env!($key) {
-            Some(val) => val,
-            None => "",
-        }
-    };
-}
-
-const IP: &str = env_or_default!("AX_IP");
-const GATEWAY: &str = env_or_default!("AX_GW");
-const DNS_SEVER: &str = "8.8.8.8";
-const IP_PREFIX: u8 = 24;
-
-const STANDARD_MTU: usize = 1500;
-
-const RANDOM_SEED: u64 = 0xA2CE_05A2_CE05_A2CE;
-
-const TCP_RX_BUF_LEN: usize = 64 * 1024;
-const TCP_TX_BUF_LEN: usize = 64 * 1024;
-const UDP_RX_BUF_LEN: usize = 64 * 1024;
-const UDP_TX_BUF_LEN: usize = 64 * 1024;
-const LISTEN_QUEUE_SIZE: usize = 512;
-
-static LISTEN_TABLE: LazyInit<ListenTable> = LazyInit::new();
-static SOCKET_SET: LazyInit<SocketSetWrapper> = LazyInit::new();
-
-mod loopback;
-static LOOPBACK_DEV: LazyInit<Mutex<LoopbackDev>> = LazyInit::new();
-static LOOPBACK: LazyInit<Mutex<Interface>> = LazyInit::new();
-use self::loopback::LoopbackDev;
-
-static ETH0: LazyInit<InterfaceWrapper> = LazyInit::new();
-
-struct SocketSetWrapper<'a>(Mutex<SocketSet<'a>>);
+pub(crate) struct SocketSetWrapper<'a>(Mutex<SocketSet<'a>>);
 
 struct DeviceWrapper {
     inner: RefCell<AxNetDevice>, // use `RefCell` is enough since it's wrapped in `Mutex` in `InterfaceWrapper`.
 }
 
-struct InterfaceWrapper {
+pub(crate) struct InterfaceWrapper {
     name: &'static str,
     ether_addr: EthernetAddress,
     dev: Mutex<DeviceWrapper>,
-    iface: Mutex<Interface>,
+    pub iface: Mutex<Interface>,
 }
 
 impl<'a> SocketSetWrapper<'a> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self(Mutex::new(SocketSet::new(vec![])))
-    }
-
-    pub fn new_tcp_socket() -> socket::tcp::Socket<'a> {
-        let tcp_rx_buffer = socket::tcp::SocketBuffer::new(vec![0; TCP_RX_BUF_LEN]);
-        let tcp_tx_buffer = socket::tcp::SocketBuffer::new(vec![0; TCP_TX_BUF_LEN]);
-        socket::tcp::Socket::new(tcp_rx_buffer, tcp_tx_buffer)
-    }
-
-    pub fn new_udp_socket() -> socket::udp::Socket<'a> {
-        let udp_rx_buffer = socket::udp::PacketBuffer::new(
-            vec![socket::udp::PacketMetadata::EMPTY; 256],
-            vec![0; UDP_RX_BUF_LEN],
-        );
-        let udp_tx_buffer = socket::udp::PacketBuffer::new(
-            vec![socket::udp::PacketMetadata::EMPTY; 256],
-            vec![0; UDP_TX_BUF_LEN],
-        );
-        socket::udp::Socket::new(udp_rx_buffer, udp_tx_buffer)
-    }
-
-    pub fn new_dns_socket() -> socket::dns::Socket<'a> {
-        let server_addr = DNS_SEVER.parse().expect("invalid DNS server address");
-        socket::dns::Socket::new(&[server_addr], vec![])
     }
 
     pub fn add<T: AnySocket<'a>>(&self, socket: T) -> SocketHandle {
@@ -128,9 +59,10 @@ impl<'a> SocketSetWrapper<'a> {
     }
 
     pub fn bind_check(&self, addr: IpAddress, _port: u16) -> LinuxResult {
+        // TODO(mivik): optimize
         let mut sockets = self.0.lock();
-        for item in sockets.iter_mut() {
-            match item.1 {
+        for (_, socket) in sockets.iter_mut() {
+            match socket {
                 Socket::Tcp(s) => {
                     let local_addr = s.get_bound_endpoint();
                     if local_addr.addr == Some(addr) {
@@ -149,8 +81,9 @@ impl<'a> SocketSetWrapper<'a> {
     }
 
     pub fn poll_interfaces(&self) {
+        // TODO(mivik): poll delay
         LOOPBACK.lock().poll(
-            Instant::from_micros_const((wall_time_nanos() / NANOS_PER_MICROS) as i64),
+            Instant::from_micros_const((monotonic_time_nanos() / NANOS_PER_MICROS) as i64),
             LOOPBACK_DEV.lock().deref_mut(),
             &mut self.0.lock(),
         );
@@ -164,8 +97,9 @@ impl<'a> SocketSetWrapper<'a> {
 
 #[allow(unused)]
 impl InterfaceWrapper {
-    fn new(name: &'static str, dev: AxNetDevice, ether_addr: EthernetAddress) -> Self {
-        let mut config = Config::new(HardwareAddress::Ethernet(ether_addr));
+    pub fn new(name: &'static str, dev: AxNetDevice, ether_addr: EthernetAddress) -> Self {
+        let mut config = smoltcp::iface::Config::new(HardwareAddress::Ethernet(ether_addr));
+        // TODO(mivik): random seed
         config.random_seed = RANDOM_SEED;
 
         let mut dev = DeviceWrapper::new(dev);
@@ -179,7 +113,7 @@ impl InterfaceWrapper {
     }
 
     fn current_time() -> Instant {
-        Instant::from_micros_const((0 / NANOS_PER_MICROS) as i64)
+        Instant::from_micros_const((monotonic_time_nanos() / NANOS_PER_MICROS) as i64)
     }
 
     pub fn name(&self) -> &str {
@@ -341,57 +275,12 @@ pub fn poll_interfaces() {
     SOCKET_SET.poll_interfaces();
 }
 
-/// Benchmark raw socket transmit bandwidth.
-pub fn bench_transmit() {
-    ETH0.dev.lock().bench_transmit_bandwidth();
-}
-
-/// Benchmark raw socket receive bandwidth.
-pub fn bench_receive() {
-    ETH0.dev.lock().bench_receive_bandwidth();
-}
-
 /// Add multicast_addr to the loopback device.
 pub fn add_membership(multicast_addr: IpAddress, _interface_addr: IpAddress) {
-    let timestamp = Instant::from_micros_const((0 / NANOS_PER_MICROS) as i64);
+    let timestamp = Instant::from_micros_const((monotonic_time_nanos() / NANOS_PER_MICROS) as i64);
     let _ = LOOPBACK.lock().join_multicast_group(
         LOOPBACK_DEV.lock().deref_mut(),
         multicast_addr,
         timestamp,
     );
-}
-
-pub(crate) fn init(_net_dev: AxNetDevice) {
-    let mut device = LoopbackDev::new(Medium::Ip);
-    let config = Config::new(smoltcp::wire::HardwareAddress::Ip);
-
-    let mut iface = Interface::new(
-        config,
-        &mut device,
-        Instant::from_micros_const((0 / NANOS_PER_MICROS) as i64),
-    );
-    iface.update_ip_addrs(|ip_addrs| {
-        ip_addrs
-            .push(IpCidr::new(IpAddress::v4(127, 0, 0, 1), 8))
-            .unwrap();
-    });
-    LOOPBACK.init_once(Mutex::new(iface));
-    LOOPBACK_DEV.init_once(Mutex::new(device));
-
-    let ether_addr = EthernetAddress(_net_dev.mac_address().0);
-    let eth0 = InterfaceWrapper::new("eth0", _net_dev, ether_addr);
-
-    let ip = IP.parse().expect("invalid IP address");
-    let gateway = GATEWAY.parse().expect("invalid gateway IP address");
-    eth0.setup_ip_addr(ip, IP_PREFIX);
-    eth0.setup_gateway(gateway);
-
-    ETH0.init_once(eth0);
-    info!("created net interface {:?}:", ETH0.name());
-    info!("  ether:    {}", ETH0.ethernet_address());
-    info!("  ip:       {}/{}", ip, IP_PREFIX);
-    info!("  gateway:  {}", gateway);
-
-    SOCKET_SET.init_once(SocketSetWrapper::new());
-    LISTEN_TABLE.init_once(ListenTable::new());
 }

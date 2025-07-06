@@ -1,4 +1,4 @@
-use core::net::{IpAddr, SocketAddr};
+use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use smoltcp::wire::{IpAddress, IpEndpoint, Ipv4Address, Ipv6Address};
 
 pub const fn from_core_ipaddr(ip: IpAddr) -> IpAddress {
@@ -10,8 +10,8 @@ pub const fn from_core_ipaddr(ip: IpAddr) -> IpAddress {
 
 pub const fn into_core_ipaddr(ip: IpAddress) -> IpAddr {
     match ip {
-        IpAddress::Ipv4(ipv4) => IpAddr::V4(unsafe { core::mem::transmute(ipv4.0) }),
-        IpAddress::Ipv6(ipv6) => IpAddr::V6(unsafe { core::mem::transmute(ipv6.0) }),
+        IpAddress::Ipv4(ipv4) => IpAddr::V4(Ipv4Addr::from_octets(ipv4.0)),
+        IpAddress::Ipv6(ipv6) => IpAddr::V6(Ipv6Addr::from_octets(ipv6.0)),
     }
 }
 
@@ -28,9 +28,5 @@ pub const fn into_core_sockaddr(addr: IpEndpoint) -> SocketAddr {
     SocketAddr::new(into_core_ipaddr(addr.addr), addr.port)
 }
 
-pub fn is_unspecified(ip: IpAddress) -> bool {
-    ip.as_bytes() == [0, 0, 0, 0]
-}
-
-pub const UNSPECIFIED_IP: IpAddress = IpAddress::v4(0, 0, 0, 0);
-pub const UNSPECIFIED_ENDPOINT: IpEndpoint = IpEndpoint::new(UNSPECIFIED_IP, 0);
+pub const UNSPECIFIED_IP_V4: IpAddress = IpAddress::v4(0, 0, 0, 0);
+pub const UNSPECIFIED_ENDPOINT_V4: IpEndpoint = IpEndpoint::new(UNSPECIFIED_IP_V4, 0);

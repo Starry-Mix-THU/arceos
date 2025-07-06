@@ -9,13 +9,11 @@ homepage.workspace = true
 repository = "https://github.com/arceos-org/arceos/tree/main/modules/axnet"
 documentation = "https://arceos-org.github.io/arceos/axnet/index.html"
 
-[features]
-smoltcp = []
-default = ["smoltcp"]
-
 [dependencies]
 log = "=0.4.21"
+bitflags = "2.9.1"
 cfg-if = "1.0"
+enum_dispatch = "0.3.13"
 spin = "0.9"
 lazyinit = "0.2"
 axerrno = { workspace = true }

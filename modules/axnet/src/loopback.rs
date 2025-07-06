@@ -3,9 +3,10 @@ use smoltcp::{
     iface::SocketSet,
     phy::{Device, DeviceCapabilities, Medium},
     time::Instant,
+    wire::IpEndpoint,
 };
 
-use crate::net_impl::LISTEN_TABLE;
+use crate::LISTEN_TABLE;
 
 pub(crate) struct LoopbackDev {
     pub(crate) queue: VecDeque<Vec<u8>>,
@@ -22,15 +23,14 @@ impl LoopbackDev {
 }
 
 fn snoop_tcp_from_ip(buffer: &[u8], sockets: &mut SocketSet) -> Result<(), smoltcp::wire::Error> {
-    use crate::SocketAddr;
     use smoltcp::wire::{IpProtocol, Ipv4Packet, TcpPacket};
 
     let ipv4_packet = Ipv4Packet::new_checked(buffer)?;
 
     if ipv4_packet.next_header() == IpProtocol::Tcp {
         let tcp_packet = TcpPacket::new_checked(ipv4_packet.payload())?;
-        let src_addr = SocketAddr::new(ipv4_packet.src_addr().into(), tcp_packet.src_port());
-        let dst_addr = SocketAddr::new(ipv4_packet.dst_addr().into(), tcp_packet.dst_port());
+        let src_addr = IpEndpoint::new(ipv4_packet.src_addr().into(), tcp_packet.src_port());
+        let dst_addr = IpEndpoint::new(ipv4_packet.dst_addr().into(), tcp_packet.dst_port());
         let is_first = tcp_packet.syn() && !tcp_packet.ack();
         if is_first {
             // create a socket for the first incoming TCP packet, as the later accept() returns.
