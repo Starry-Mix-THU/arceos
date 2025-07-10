@@ -73,6 +73,8 @@ axerrno = { git = "https://github.com/Starry-Mix-THU/axerrno.git", rev = "f5d8f8
 axio = { git = "https://github.com/Starry-Mix-THU/axio.git", rev = "e662ff6" }
 page_table_entry = "0.5"
 page_table_multiarch = "0.5"
+event-listener = { version = "5.4.0", default-features = false }
+futures = { version = "0.3.31", default-features = false, features = ["alloc"] }
 
 [profile.release]
 lto = true

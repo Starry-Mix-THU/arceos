@@ -23,6 +23,8 @@ multitask = [
     "dep:kernel_guard",
     "dep:crate_interface",
     "dep:cpumask",
+    "dep:event-listener",
+    "dep:futures",
 ]
 task-ext = ["dep:extern-trait"]
 irq = []
@@ -51,6 +53,9 @@ crate_interface = { version = "0.1", optional = true }
 cpumask = { version = "0.1", optional = true }
 extern-trait = { version = "0.2", optional = true }
 scheduler = { git = "https://github.com/Starry-Mix-THU/scheduler", rev = "3bc2f73", optional = true }
+event-listener = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+pin-project = "1.1.10"
 
 [dev-dependencies]
 rand = "0.9"

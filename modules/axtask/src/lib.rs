@@ -33,6 +33,8 @@
 #[cfg(test)]
 mod tests;
 
+pub mod future;
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "multitask")] {
         #[macro_use]

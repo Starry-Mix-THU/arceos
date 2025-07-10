@@ -2,7 +2,8 @@
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use axtask::{WaitQueue, current};
+use axtask::{current, future::block_on};
+use event_listener::Event;
 
 /// A [`lock_api::RawMutex`] implementation.
 ///
@@ -10,7 +11,7 @@ use axtask::{WaitQueue, current};
 /// wait queue. When the mutex is unlocked, all tasks waiting on the queue
 /// will be woken up.
 pub struct RawMutex {
-    wq: WaitQueue,
+    event: Event,
     owner_id: AtomicU64,
 }
 
@@ -19,22 +20,22 @@ impl RawMutex {
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
-            wq: WaitQueue::new(),
+            event: Event::new(),
             owner_id: AtomicU64::new(0),
         }
     }
 }
 
 unsafe impl lock_api::RawMutex for RawMutex {
-    const INIT: Self = RawMutex::new();
-
     type GuardMarker = lock_api::GuardSend;
+
+    const INIT: Self = RawMutex::new();
 
     fn lock(&self) {
         let current_id = current().id().as_u64();
         loop {
-            // Can fail to lock even if the spinlock is not locked. May be more efficient than `try_lock`
-            // when called in a loop.
+            // Can fail to lock even if the spinlock is not locked. May be more efficient
+            // than `try_lock` when called in a loop.
             match self.owner_id.compare_exchange_weak(
                 0,
                 current_id,
@@ -50,7 +51,14 @@ unsafe impl lock_api::RawMutex for RawMutex {
                         current().id_name()
                     );
                     // Wait until the lock looks unlocked before retrying
-                    self.wq.wait_until(|| !self.is_locked());
+                    block_on(async {
+                        loop {
+                            self.event.listen().await;
+                            if !self.is_locked() {
+                                break;
+                            }
+                        }
+                    });
                 }
             }
         }
@@ -73,7 +81,7 @@ unsafe impl lock_api::RawMutex for RawMutex {
             "{} tried to release mutex it doesn't own",
             current().id_name()
         );
-        self.wq.notify_one(true);
+        self.event.notify_relaxed(1);
     }
 
     fn is_locked(&self) -> bool {
@@ -88,9 +96,11 @@ pub type MutexGuard<'a, T> = lock_api::MutexGuard<'a, RawMutex, T>;
 
 #[cfg(test)]
 mod tests {
-    use crate::Mutex;
-    use axtask as thread;
     use std::sync::Once;
+
+    use axtask as thread;
+
+    use crate::Mutex;
 
     static INIT: Once = Once::new();
 

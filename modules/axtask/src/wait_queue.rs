@@ -1,9 +1,7 @@
-use alloc::collections::VecDeque;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::{collections::VecDeque, sync::Arc, vec::Vec};
 
 use kernel_guard::{NoOp, NoPreemptIrqSave};
-use kspin::{SpinNoIrq};
+use kspin::{BaseSpinLockGuard, SpinNoIrq};
 
 use crate::{AxTaskRef, CurrentTask, current_run_queue, select_run_queue};
 
@@ -12,8 +10,9 @@ use crate::{AxTaskRef, CurrentTask, current_run_queue, select_run_queue};
 /// # Examples
 ///
 /// ```
-/// use axtask::WaitQueue;
 /// use core::sync::atomic::{AtomicU32, Ordering};
+///
+/// use axtask::WaitQueue;
 ///
 /// static VALUE: AtomicU32 = AtomicU32::new(0);
 /// static WQ: WaitQueue = WaitQueue::new();
@@ -48,8 +47,18 @@ impl WaitQueue {
         }
     }
 
+    fn before_block(
+        mut guard: BaseSpinLockGuard<NoPreemptIrqSave, VecDeque<AxTaskRef>>,
+    ) -> impl FnOnce(AxTaskRef) {
+        move |curr| {
+            curr.set_in_wait_queue(true);
+            guard.push_back(curr);
+        }
+    }
+
     /// Cancel events by removing the task from the wait queue.
-    /// If `from_timer_list` is true, try to remove the task from the timer list.
+    /// If `from_timer_list` is true, try to remove the task from the timer
+    /// list.
     fn cancel_events(&self, curr: CurrentTask, _from_timer_list: bool) {
         // A task can be wake up only one events (timer or `notify()`), remove
         // the event from another queue.
@@ -66,9 +75,11 @@ impl WaitQueue {
             curr.timer_ticket_expired();
             // Note:
             //  this task is still not removed from timer list of target CPU,
-            //  which may cause some redundant timer events because it still needs to
-            //  go through the process of expiring an event from the timer list and invoking the callback.
-            //  (it can be considered a lazy-removal strategy, it will be ignored when it is about to take effect.)
+            //  which may cause some redundant timer events because it still
+            // needs to  go through the process of expiring an event
+            // from the timer list and invoking the callback.
+            //  (it can be considered a lazy-removal strategy, it will be
+            // ignored when it is about to take effect.)
         }
     }
 
@@ -76,8 +87,7 @@ impl WaitQueue {
     /// notifies it.
     pub fn wait(&self) {
         let mut rq = current_run_queue::<NoPreemptIrqSave>();
-        let mut queue = self.queue.lock();
-        rq.blocked_resched(move |curr| queue.push_back(curr));
+        rq.blocked_resched(Self::before_block(self.queue.lock()));
         self.cancel_events(crate::current(), false);
     }
 
@@ -93,18 +103,18 @@ impl WaitQueue {
         let curr = crate::current();
         loop {
             let mut rq = current_run_queue::<NoPreemptIrqSave>();
-            let mut wq = self.queue.lock();
+            let wq = self.queue.lock();
             if condition() {
                 break;
             }
-            rq.blocked_resched(move |curr| wq.push_back(curr));
+            rq.blocked_resched(Self::before_block(wq));
             // Preemption may occur here.
         }
         self.cancel_events(curr, false);
     }
 
-    /// Blocks the current task and put it into the wait queue, until other tasks
-    /// notify it, or the given duration has elapsed.
+    /// Blocks the current task and put it into the wait queue, until other
+    /// tasks notify it, or the given duration has elapsed.
     #[cfg(feature = "irq")]
     pub fn wait_timeout(&self, dur: core::time::Duration) -> bool {
         let mut rq = current_run_queue::<NoPreemptIrqSave>();
@@ -117,8 +127,7 @@ impl WaitQueue {
         );
         crate::timers::set_alarm_wakeup(deadline, curr.clone());
 
-        let mut queue = self.queue.lock();
-        rq.blocked_resched(move |curr| queue.push_back(curr));
+        rq.blocked_resched(Self::before_block(self.queue.lock()));
 
         let timeout = curr.in_wait_queue(); // still in the wait queue, must have timed out
 
@@ -152,13 +161,13 @@ impl WaitQueue {
             if axhal::time::wall_time() >= deadline {
                 break;
             }
-            let mut wq = self.queue.lock();
+            let wq = self.queue.lock();
             if condition() {
                 timeout = false;
                 break;
             }
 
-            rq.blocked_resched(move |curr| wq.push_back(curr));
+            rq.blocked_resched(Self::before_block(wq));
             // Preemption may occur here.
         }
         // Always try to remove the task from the timer list.
@@ -220,7 +229,8 @@ impl WaitQueue {
         }
     }
 
-    /// Requeues at most `count` tasks in the wait queue to the target wait queue.
+    /// Requeues at most `count` tasks in the wait queue to the target wait
+    /// queue.
     ///
     /// Returns the number of tasks requeued.
     pub fn requeue(&self, mut count: usize, target: &WaitQueue) -> usize {
