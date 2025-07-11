@@ -1,14 +1,14 @@
+use alloc::vec;
 use core::{
     cell::UnsafeCell,
     net::SocketAddr,
     sync::atomic::{AtomicU8, Ordering},
+    task::Poll,
 };
 
-use alloc::vec;
 use axerrno::{LinuxError, LinuxResult, ax_err, bail};
 use axio::PollState;
 use axsync::Mutex;
-
 use smoltcp::{
     iface::SocketHandle,
     socket::tcp as smol,
@@ -16,6 +16,7 @@ use smoltcp::{
     wire::{IpEndpoint, IpListenEndpoint},
 };
 
+use super::{LISTEN_TABLE, SOCKET_SET};
 use crate::{
     RecvFlags, SendFlags, ShutdownKind, Socket, SocketOps,
     addr::{UNSPECIFIED_ENDPOINT_V4, from_core_sockaddr, into_core_sockaddr},
@@ -24,11 +25,9 @@ use crate::{
     options::{Configurable, GetSocketOption, SetSocketOption},
 };
 
-use super::{LISTEN_TABLE, SOCKET_SET};
-
 // State transitions:
-// CLOSED -(connect)-> BUSY -> CONNECTING -> CONNECTED -(shutdown)-> BUSY -> CLOSED
-//       |
+// CLOSED -(connect)-> BUSY -> CONNECTING -> CONNECTED -(shutdown)-> BUSY ->
+// CLOSED       |
 //       |-(listen)-> BUSY -> LISTENING -(shutdown)-> BUSY -> CLOSED
 //       |
 //        -(bind)-> BUSY -> CLOSED
@@ -105,9 +104,10 @@ impl TcpSocket {
 
     /// Update the state of the socket atomically.
     ///
-    /// If the current state is `expect`, it first changes the state to `STATE_BUSY`,
-    /// then calls the given function. If the function returns `Ok`, it changes the
-    /// state to `new`, otherwise it changes the state back to `expect`.
+    /// If the current state is `expect`, it first changes the state to
+    /// `STATE_BUSY`, then calls the given function. If the function returns
+    /// `Ok`, it changes the state to `new`, otherwise it changes the state
+    /// back to `expect`.
     ///
     /// It returns `Ok` if the current state is `expect`, otherwise it returns
     /// the current state in `Err`.
@@ -255,6 +255,7 @@ impl Configurable for TcpSocket {
         }
         Ok(true)
     }
+
     fn set_option_inner(&self, option: SetSocketOption) -> LinuxResult<bool> {
         use SetSocketOption as O;
 
@@ -313,6 +314,7 @@ impl SocketOps for TcpSocket {
         })
         .map_err(|_| ax_err!(EINVAL, "already bound"))?
     }
+
     fn connect(&self, remote_addr: SocketAddr) -> LinuxResult<()> {
         self.update_state(STATE_CLOSED, STATE_CONNECTING, || {
             // SAFETY: no other threads can read or write these fields.
@@ -370,15 +372,15 @@ impl SocketOps for TcpSocket {
         axtask::yield_now();
 
         // Here our state must be `CONNECTING`, and only one thread can run here.
-        self.general.block_on(None, || {
+        self.general.block_on(None, |_context| {
             let PollState { writable, .. } = self.poll_connect()?;
-            if !writable {
+            Poll::Ready(if !writable {
                 Err(LinuxError::EAGAIN)
             } else if self.get_state() == STATE_CONNECTED {
                 Ok(())
             } else {
-                bail!(ECONNREFUSED, "connection refused");
-            }
+                Err(ax_err!(ECONNREFUSED, "connection refused"))
+            })
         })
     }
 
@@ -394,6 +396,7 @@ impl SocketOps for TcpSocket {
         })
         .unwrap_or(Ok(())) // ignore simultaneous `listen`s.
     }
+
     fn accept(&self) -> LinuxResult<Socket> {
         if !self.is_listening() {
             bail!(EINVAL, "not listening");
@@ -402,39 +405,46 @@ impl SocketOps for TcpSocket {
         // SAFETY: `self.local_addr` should be initialized after `bind()`.
         let local_port = unsafe { self.local_addr.get().read().port };
         self.general
-            .block_on(None, || {
-                let (handle, (local_addr, peer_addr)) = LISTEN_TABLE.accept(local_port)?;
-                debug!("accepted connection from {}, {}", handle, peer_addr);
-                Ok(TcpSocket::new_connected(handle, local_addr, peer_addr))
+            .block_on(None, |_context| {
+                Poll::Ready(LISTEN_TABLE.accept(local_port).and_then(
+                    |(handle, (local_addr, peer_addr))| {
+                        debug!("accepted connection from {}, {}", handle, peer_addr);
+                        Ok(TcpSocket::new_connected(handle, local_addr, peer_addr))
+                    },
+                ))
             })
             .map(Socket::Tcp)
     }
 
     fn send(&self, buf: &[u8], _to: Option<SocketAddr>, _flags: SendFlags) -> LinuxResult<usize> {
         if self.is_connecting() {
-            bail!(EAGAIN);
+            return Err(ax_err!(EAGAIN)).into();
         } else if !self.is_connected() {
-            bail!(ENOTCONN);
+            return Err(ax_err!(ENOTCONN)).into();
         }
 
         // SAFETY: `self.handle` should be initialized in a connected socket.
         let handle = unsafe { self.handle.get().read().unwrap() };
-        self.general.block_on(self.general.send_timeout(), || {
-            with_smol_socket(handle, |socket| {
-                if !socket.is_active() || !socket.may_send() {
-                    // closed by remote
-                    bail!(ECONNRESET, "connection reset by peer");
-                } else if !socket.can_send() {
-                    return Err(LinuxError::EAGAIN);
-                }
-                // connected, and the tx buffer is not full
-                let len = socket
-                    .send_slice(buf)
-                    .map_err(|_| ax_err!(ENOTCONN, "not connected?"))?;
-                Ok(len)
+        self.general
+            .block_on(self.general.send_timeout(), |context| {
+                with_smol_socket(handle, |socket| {
+                    Poll::Ready(if !socket.is_active() || !socket.may_send() {
+                        // closed by remote
+                        Err(ax_err!(ECONNRESET, "connection reset by peer"))
+                    } else if !socket.can_send() {
+                        socket.register_send_waker(context.waker());
+                        return Poll::Pending;
+                    } else {
+                        // connected, and the tx buffer is not full
+                        let len = socket
+                            .send_slice(buf)
+                            .map_err(|_| ax_err!(ENOTCONN, "not connected?"))?;
+                        Ok(len)
+                    })
+                })
             })
-        })
     }
+
     fn recv(
         &self,
         buf: &mut [u8],
@@ -449,27 +459,29 @@ impl SocketOps for TcpSocket {
 
         // SAFETY: `self.handle` should be initialized in a connected socket.
         let handle = unsafe { self.handle.get().read().unwrap() };
-        self.general.block_on(self.general.recv_timeout(), || {
-            with_smol_socket(handle, |socket| {
-                if socket.recv_queue() > 0 {
-                    if flags.contains(RecvFlags::PEEK) {
-                        socket.peek_slice(buf)
+        self.general
+            .block_on(self.general.recv_timeout(), |context| {
+                with_smol_socket(handle, |socket| {
+                    Poll::Ready(if socket.recv_queue() > 0 {
+                        if flags.contains(RecvFlags::PEEK) {
+                            socket.peek_slice(buf)
+                        } else {
+                            socket.recv_slice(buf)
+                        }
+                        .map_err(|_| ax_err!(ENOTCONN, "not connected?"))
+                    } else if !socket.is_active() {
+                        // not open
+                        Err(ax_err!(ECONNREFUSED, "connection refused"))
+                    } else if !socket.may_recv() {
+                        // connection closed
+                        Ok(0)
                     } else {
-                        socket.recv_slice(buf)
-                    }
-                    .map_err(|_| ax_err!(ENOTCONN, "not connected?"))
-                } else if !socket.is_active() {
-                    // not open
-                    bail!(ECONNREFUSED, "connection refused");
-                } else if !socket.may_recv() {
-                    // connection closed
-                    Ok(0)
-                } else {
-                    // no more data
-                    Err(LinuxError::EAGAIN)
-                }
+                        // no more data
+                        socket.register_recv_waker(context.waker());
+                        return Poll::Pending;
+                    })
+                })
             })
-        })
     }
 
     fn local_addr(&self) -> LinuxResult<SocketAddr> {

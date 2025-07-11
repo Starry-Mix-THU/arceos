@@ -1,10 +1,13 @@
 use core::{
+    future::poll_fn,
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    task::{Context, Poll, Waker},
     time::Duration,
 };
 
 use axerrno::{LinuxError, LinuxResult};
 use axhal::time::monotonic_time;
+use axtask::future::block_on;
 
 use crate::{
     SOCKET_SET,
@@ -35,6 +38,7 @@ impl GeneralOptions {
     pub fn nonblocking(&self) -> bool {
         self.nonblock.load(Ordering::Relaxed)
     }
+
     pub fn reuse_address(&self) -> bool {
         self.reuse_address.load(Ordering::Relaxed)
     }
@@ -43,6 +47,7 @@ impl GeneralOptions {
         let nanos = self.send_timeout_nanos.load(Ordering::Relaxed);
         (nanos > 0).then(|| Duration::from_nanos(nanos))
     }
+
     pub fn recv_timeout(&self) -> Option<Duration> {
         let nanos = self.recv_timeout_nanos.load(Ordering::Relaxed);
         (nanos > 0).then(|| Duration::from_nanos(nanos))
@@ -50,25 +55,37 @@ impl GeneralOptions {
 
     pub fn block_on<F, T>(&self, timeout: Option<Duration>, mut f: F) -> LinuxResult<T>
     where
-        F: FnMut() -> LinuxResult<T>,
+        F: FnMut(&mut Context) -> Poll<LinuxResult<T>>,
     {
-        let deadline = timeout.map(|t| monotonic_time() + t);
         if self.nonblocking() {
-            f()
-        } else {
-            loop {
-                SOCKET_SET.poll_interfaces();
-                match f() {
-                    Ok(t) => return Ok(t),
-                    Err(LinuxError::EAGAIN) => {
-                        if deadline.is_some_and(|d| monotonic_time() >= d) {
-                            return Err(LinuxError::ETIMEDOUT);
-                        }
-                        axtask::yield_now()
-                    }
-                    Err(e) => return Err(e),
-                }
+            let mut context = Context::from_waker(Waker::noop());
+            match f(&mut context) {
+                Poll::Ready(result) => result,
+                Poll::Pending => Err(LinuxError::EAGAIN),
             }
+        } else {
+            let deadline = timeout.map(|t| monotonic_time() + t);
+            block_on(poll_fn(|context| {
+                loop {
+                    SOCKET_SET.poll_interfaces();
+                    match f(context) {
+                        Poll::Ready(Err(LinuxError::EAGAIN)) => {
+                            // The inner function does not block but the waker
+                            // is not used (otherwise it should return
+                            // Poll::Pending), so we need to poll it again.
+                            if deadline.is_some_and(|d| monotonic_time() >= d) {
+                                return Poll::Ready(Err(LinuxError::ETIMEDOUT));
+                            }
+                            axtask::yield_now();
+                            continue;
+                        }
+                        Poll::Ready(result) => break Poll::Ready(result),
+                        Poll::Pending => {
+                            break Poll::Pending;
+                        }
+                    }
+                }
+            }))
         }
     }
 }
@@ -96,6 +113,7 @@ impl Configurable for GeneralOptions {
         }
         Ok(true)
     }
+
     fn set_option_inner(&self, option: SetSocketOption) -> LinuxResult<bool> {
         use SetSocketOption as O;
 
