@@ -49,9 +49,10 @@ else ifeq ($(APP_TYPE), c)
 	$(call cargo_build,ulib/axlibc,$(AX_FEAT) $(LIB_FEAT))
 endif
 ifeq ($(BACKTRACE), y)
-	$(call run_cmd,parallel,"$(OBJCOPY) $(OUT_ELF) --dump-section .{}={}.bin || touch {}.bin" ::: \
+	$(foreach var, \
 		debug_abbrev debug_addr debug_aranges debug_info debug_line \
-		debug_line_str debug_ranges debug_rnglists debug_str debug_str_offsets)
+		debug_line_str debug_ranges debug_rnglists debug_str debug_str_offsets, \
+		$(OBJCOPY) $(OUT_ELF) --dump-section .$(var)=$(var).bin || touch $(var).bin;)
 	$(call run_cmd,cat,debug_abbrev.bin debug_addr.bin debug_aranges.bin debug_info.bin debug_line.bin \
 		debug_line_str.bin debug_ranges.bin debug_rnglists.bin debug_str.bin debug_str_offsets.bin > debug.bin)
 	@rm -f debug_*.bin
