@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "modules/axalloc",
+    "modules/axbacktrace",
     "modules/axconfig",
     "modules/axdisplay",
     "modules/axdriver",
@@ -51,6 +52,7 @@ arceos_posix_api = { path = "api/arceos_posix_api" }
 axfeat = { path = "api/axfeat" }
 
 axalloc = { path = "modules/axalloc" }
+axbacktrace = { path = "modules/axbacktrace" }
 axconfig = { path = "modules/axconfig" }
 axdisplay = { path = "modules/axdisplay" }
 axdriver = { path = "modules/axdriver" }

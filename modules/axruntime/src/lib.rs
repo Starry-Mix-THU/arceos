@@ -116,6 +116,7 @@ pub fn rust_main(cpu_id: usize, arg: usize) -> ! {
             target = {}
             build_mode = {}
             log_level = {}
+            backtrace = {}
             smp = {}
         "},
         axconfig::ARCH,
@@ -123,6 +124,7 @@ pub fn rust_main(cpu_id: usize, arg: usize) -> ! {
         option_env!("AX_TARGET").unwrap_or(""),
         option_env!("AX_MODE").unwrap_or(""),
         option_env!("AX_LOG").unwrap_or(""),
+        axbacktrace::is_enabled(),
         axconfig::plat::CPU_NUM,
     );
     #[cfg(feature = "rtc")]
@@ -150,6 +152,8 @@ pub fn rust_main(cpu_id: usize, arg: usize) -> ! {
 
     #[cfg(feature = "alloc")]
     init_allocator();
+
+    axbacktrace::init();
 
     #[cfg(feature = "paging")]
     axmm::init_memory_management();
