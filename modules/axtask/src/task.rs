@@ -1,20 +1,24 @@
-use alloc::{boxed::Box, string::String, sync::Arc};
-use core::convert::Infallible;
-use core::ops::Deref;
-use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU64, Ordering};
-use core::{alloc::Layout, cell::UnsafeCell, fmt, ptr::NonNull};
-
+use alloc::{boxed::Box, string::String, sync::Arc, task::Wake};
 #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
-
-use kspin::SpinNoIrq;
-use memory_addr::{VirtAddr, align_up_4k};
+use core::{
+    alloc::Layout,
+    cell::UnsafeCell,
+    convert::Infallible,
+    fmt,
+    ops::Deref,
+    ptr::NonNull,
+    sync::atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU64, Ordering},
+};
 
 use axhal::arch::TaskContext;
 #[cfg(feature = "tls")]
 use axhal::tls::TlsArea;
+use kernel_guard::NoPreemptIrqSave;
+use kspin::SpinNoIrq;
+use memory_addr::{VirtAddr, align_up_4k};
 
-use crate::{AxCpuMask, AxTask, AxTaskRef, WaitQueue};
+use crate::{AxCpuMask, AxTask, AxTaskRef, WaitQueue, select_run_queue};
 
 /// A unique identifier for a thread.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -27,12 +31,13 @@ pub enum TaskState {
     /// Task is running on some CPU.
     Running = 1,
     /// Task is ready to run on some scheduler's ready queue.
-    Ready = 2,
+    Ready   = 2,
     /// Task is blocked (in the wait queue or timer list),
-    /// and it has finished its scheduling process, it can be wake up by `notify()` on any run queue safely.
+    /// and it has finished its scheduling process, it can be wake up by
+    /// `notify()` on any run queue safely.
     Blocked = 3,
     /// Task is exited and waiting for being dropped.
-    Exited = 4,
+    Exited  = 4,
 }
 
 /// User-defined task extended data.
@@ -66,8 +71,9 @@ pub struct TaskInner {
     on_cpu: AtomicBool,
 
     /// A ticket ID used to identify the timer event.
-    /// Set by `set_timer_ticket()` when creating a timer event in `set_alarm_wakeup()`,
-    /// expired by setting it as zero in `timer_ticket_expired()`, which is called by `cancel_events()`.
+    /// Set by `set_timer_ticket()` when creating a timer event in
+    /// `set_alarm_wakeup()`, expired by setting it as zero in
+    /// `timer_ticket_expired()`, which is called by `cancel_events()`.
     #[cfg(feature = "irq")]
     timer_ticket_id: AtomicU64,
 
@@ -165,7 +171,8 @@ impl TaskInner {
 
     /// Wait for the task to exit, and return the exit code.
     ///
-    /// It will return immediately if the task has already exited (but not dropped).
+    /// It will return immediately if the task has already exited (but not
+    /// dropped).
     pub fn join(&self) -> Option<i32> {
         self.wait_for_exit
             .wait_until(|| self.state() == TaskState::Exited);
@@ -299,8 +306,8 @@ impl TaskInner {
     }
 
     /// Transition the task state from `current_state` to `new_state`,
-    /// Returns `true` if the current state is `current_state` and the state is successfully set to `new_state`,
-    /// otherwise returns `false`.
+    /// Returns `true` if the current state is `current_state` and the state is
+    /// successfully set to `new_state`, otherwise returns `false`.
     #[inline]
     pub(crate) fn transition_state(&self, current_state: TaskState, new_state: TaskState) -> bool {
         self.state
@@ -425,8 +432,9 @@ impl TaskInner {
     ///
     /// It is used to protect the task from being moved to a different run queue
     /// while it has not finished its scheduling process.
-    /// The `on_cpu field is set to `true` when the task is preparing to run on a CPU,
-    /// and it is set to `false` when the task has finished its scheduling process in `clear_prev_task_on_cpu()`.
+    /// The `on_cpu field is set to `true` when the task is preparing to run on
+    /// a CPU, and it is set to `false` when the task has finished its
+    /// scheduling process in `clear_prev_task_on_cpu()`.
     #[cfg(feature = "smp")]
     #[inline]
     pub(crate) fn on_cpu(&self) -> bool {
@@ -546,8 +554,32 @@ impl CurrentTask {
 
 impl Deref for CurrentTask {
     type Target = TaskInner;
+
     fn deref(&self) -> &Self::Target {
         self.0.deref()
+    }
+}
+
+pub(crate) struct AxWaker {
+    task: AxTaskRef,
+}
+impl AxWaker {
+    pub fn new(task: AxTaskRef) -> Self {
+        Self { task }
+    }
+
+    #[inline]
+    pub fn wake(&self) {
+        select_run_queue::<NoPreemptIrqSave>(&self.task).unblock_task(self.task.clone(), true);
+    }
+}
+impl Wake for AxWaker {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        AxWaker::wake(self)
     }
 }
 
@@ -557,7 +589,8 @@ extern "C" fn task_entry() -> ! {
         // Clear the prev task on CPU before running the task entry function.
         crate::run_queue::clear_prev_task_on_cpu();
     }
-    // Enable irq (if feature "irq" is enabled) before running the task entry function.
+    // Enable irq (if feature "irq" is enabled) before running the task entry
+    // function.
     #[cfg(feature = "irq")]
     axhal::arch::enable_irqs();
     let task = crate::current();

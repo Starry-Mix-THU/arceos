@@ -198,7 +198,7 @@ pub fn yield_now() {
 
 /// Current task is going to sleep for the given duration.
 ///
-/// If the feature `irq` is not enabled, it uses busy-wait instead.
+/// If the feature `irq` is not enabled, it uses busy-it instead.
 pub fn sleep(dur: core::time::Duration) {
     sleep_until(axhal::time::wall_time() + dur);
 }
