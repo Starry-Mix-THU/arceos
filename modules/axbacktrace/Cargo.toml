@@ -15,7 +15,6 @@ cfg-if = "1"
 
 addr2line = { version = "0.25.0", default-features = false, optional = true, features = [
     "rustc-demangle",
-    "smallvec",
     "alloc",
 ] }
 gimli = { version = "0.32.0", default-features = false, optional = true, features = [
