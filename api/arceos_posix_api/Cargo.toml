@@ -24,7 +24,7 @@ irq = ["axfeat/irq"]
 alloc = ["dep:axalloc", "axfeat/alloc"]
 multitask = ["axtask/multitask", "axfeat/multitask", "axsync/multitask"]
 fd = ["alloc", "dep:axns"]
-fs = ["dep:axfs", "axfeat/fs", "fd"]
+fs = ["dep:axfs-ng", "dep:axfs-ng-vfs", "axfeat/fs", "fd"]
 net = ["dep:axnet", "axfeat/net", "fd"]
 pipe = ["fd"]
 select = ["fd"]
@@ -36,7 +36,7 @@ uspace = ["axns/thread-local"]
 axalloc = { workspace = true, optional = true }
 axconfig = { workspace = true }
 axfeat = { workspace = true }
-axfs = { workspace = true, optional = true }
+axfs-ng = { workspace = true, optional = true }
 axhal = { workspace = true }
 axlog = { workspace = true }
 axnet = { workspace = true, optional = true }
@@ -47,6 +47,7 @@ axtask = { workspace = true, optional = true }
 
 # Other crates
 axerrno = { workspace = true }
+axfs-ng-vfs = { workspace = true, optional = true }
 axio = { workspace = true }
 ctor_bare = { workspace = true }
 flatten_objects = "0.2"
