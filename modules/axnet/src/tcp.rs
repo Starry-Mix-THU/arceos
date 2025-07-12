@@ -330,26 +330,33 @@ impl SocketOps for TcpSocket {
                 bound_endpoint, remote_endpoint
             );
 
-            warn!("Temporarily net bridge used");
-            let iface = if remote_endpoint.addr.as_bytes()[0] == 127 {
-                super::LOOPBACK.get().unwrap()
-            } else {
-                info!("Use eth net");
-                &super::ETH0.iface
+            let connect = move |context: &mut smoltcp::iface::Context| {
+                with_smol_socket(handle, |socket| {
+                    socket
+                        .connect(context, remote_endpoint, bound_endpoint)
+                        .map_err(|e| match e {
+                            smol::ConnectError::InvalidState => {
+                                ax_err!(EISCONN, "already conncted")
+                            }
+                            smol::ConnectError::Unaddressable => {
+                                ax_err!(ECONNREFUSED, "unaddressable")
+                            }
+                        })?;
+                    Ok::<(IpEndpoint, IpEndpoint), LinuxError>((
+                        socket.local_endpoint().unwrap(),
+                        socket.remote_endpoint().unwrap(),
+                    ))
+                })
             };
 
-            let (local_endpoint, remote_endpoint) = with_smol_socket(handle, |socket| {
-                socket
-                    .connect(iface.lock().context(), remote_endpoint, bound_endpoint)
-                    .map_err(|e| match e {
-                        smol::ConnectError::InvalidState => ax_err!(EISCONN, "already conncted"),
-                        smol::ConnectError::Unaddressable => ax_err!(ECONNREFUSED, "unaddressable"),
-                    })?;
-                Ok::<(IpEndpoint, IpEndpoint), LinuxError>((
-                    socket.local_endpoint().unwrap(),
-                    socket.remote_endpoint().unwrap(),
-                ))
-            })?;
+            warn!("Temporarily net bridge used");
+            let (local_endpoint, remote_endpoint) = if remote_endpoint.addr.as_bytes()[0] == 127 {
+                connect(super::LOOPBACK.inner().lock().context())
+            } else {
+                info!("Use eth net");
+                connect(super::ETH0.inner().lock().context())
+            }?;
+
             unsafe {
                 // SAFETY: no other threads can read or write these fields as we
                 // have changed the state to `BUSY`.

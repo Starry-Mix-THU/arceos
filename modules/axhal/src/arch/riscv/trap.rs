@@ -1,8 +1,12 @@
 use memory_addr::VirtAddr;
 use page_table_entry::MappingFlags;
-use riscv::interrupt::Trap;
-use riscv::interrupt::supervisor::{Exception as E, Interrupt as I};
-use riscv::register::{scause, stval};
+use riscv::{
+    interrupt::{
+        Trap,
+        supervisor::{Exception as E, Interrupt as I},
+    },
+    register::{scause, stval},
+};
 
 use super::TrapFrame;
 
